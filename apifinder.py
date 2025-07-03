@@ -10,23 +10,30 @@ parser.add_argument("-u", "--url", help="The website" ,required=True)
 parser.add_argument("-c", "--cookie", help="The website cookie")
 arg = parser.parse_args()
 
+def color(c,text):
+	if c=="red":
+		return "\033[0;31;40m"+text+"\033[0m"
+	if c=="green":
+		return "\033[0;32;40m"+text+"\033[0m"
+	if c=="yellow":
+		return print("\033[0;33;40m"+text+"\033[0m")
 
 
 def do_request(url):
 	header = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.108 Safari/537.36"}
-	print(f"[+]正在尝试请求{url}")
+	print(color("yellow",f"[+]正在尝试请求{url}"))
 	try:
 		get_res = requests.get(url,headers=header,cookies=arg.cookie).text.replace(" ","").replace("\n","")
-		print(f"[+]GET请求回显")
+		print(color("green",f"[+]GET请求回显"))
 		print(f"{get_res[:200]}......")
 	except Exception as e:
-		print("[-]GET请求失败")
+		print(color("red","[-]GET请求失败"))
 	try:
 		post_res = requests.post(url,headers=header,cookies=arg.cookie).text.replace(" ","").replace("\n","")
-		print(f"[+]POST请求回显")
-		print(f"{post_res[:200]}......")
+		print(color("green",f"[+]POST请求回显"))
+		print(f"{post_res[:200]}......\n")
 	except Exception as e:
-		print("[-]POST请求失败")
+		print(color("red","[-]POST请求失败\n"))
 		time.sleep(0.5)
 	
 def find_last(string,str):
@@ -147,10 +154,10 @@ def find_by_url(url):
 		result = []
 		for i in allurls:
 			for j in allurls[i]:
-				print(f"[+]{j}发现于{i}")
+				print(color("green",f"[+]{j}发现于{i}"))
 				temp1 = urlparse(j)
 				temp2 = urlparse(url)
-				print(temp1.netloc)
+				#print(temp1.netloc)
 				if temp1.netloc != urlparse("1").netloc:
 					do_request(j)
 				else:
