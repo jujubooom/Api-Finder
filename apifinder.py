@@ -8,34 +8,68 @@ import sys
 parser = argparse.ArgumentParser()
 parser.add_argument("-u", "--url", help="The website" ,required=True)
 parser.add_argument("-c", "--cookie", help="The website cookie")
+parser.add_argument("-s", "--silent", action="store_true", help="silent mode, only output the found API endpoints")
 arg = parser.parse_args()
 
-def color(c,text):
-	if c=="red":
-		return "\033[0;31;40m"+text+"\033[0m"
-	if c=="green":
-		return "\033[0;32;40m"+text+"\033[0m"
-	if c=="yellow":
-		return print("\033[0;33;40m"+text+"\033[0m")
+# 我这里把之前的print_silent函数改成了OutputManager类，后续好添加新的功能
+class OutputManager:
+	def __init__(self, silent_mode):
+		self.silent_mode = silent_mode
+	
+	def color(self, c, text):
+		if self.silent_mode:
+			return ""
+		if c=="red":
+			return "\033[0;31;40m"+text+"\033[0m"
+		if c=="green":
+			return "\033[0;32;40m"+text+"\033[0m"
+		if c=="yellow":
+			return "\033[0;33;40m"+text+"\033[0m"
+	
+	def print_info(self, text):
+		if not self.silent_mode:
+			print(text)
+	
+	def print_url(self, url):
+		if self.silent_mode:
+			print(url)
+		else:
+			print(self.color("green", f"[+]{url}"))
+	
+	def print_error(self, text):
+		if not self.silent_mode:
+			print(self.color("red", text))
 
+# init 一下 
+output = OutputManager(arg.silent)
 
 def do_request(url):
 	header = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.108 Safari/537.36"}
-	print(color("yellow",f"[+]正在尝试请求{url}"))
+	output.print_info(output.color("yellow",f"[+]正在尝试请求{url}"))
+	
+	# GET
 	try:
 		get_res = requests.get(url,headers=header,cookies=arg.cookie).text.replace(" ","").replace("\n","")
-		print(color("green",f"[+]GET请求回显"))
-		print(f"{get_res[:200]}......")
+		if output.silent_mode:
+			print(url) 
+		else:
+			output.print_info(output.color("green",f"[+]GET请求回显"))
+			output.print_info(f"{get_res[:200]}......")
 	except Exception as e:
-		print(color("red","[-]GET请求失败"))
+		output.print_error("[-]GET请求失败")
+	
+	# POST
 	try:
 		post_res = requests.post(url,headers=header,cookies=arg.cookie).text.replace(" ","").replace("\n","")
-		print(color("green",f"[+]POST请求回显"))
-		print(f"{post_res[:200]}......\n")
+		if not output.silent_mode:
+			output.print_info(output.color("green",f"[+]POST请求回显"))
+			output.print_info(f"{post_res[:200]}......\n")
+		else:
+			print() 
 	except Exception as e:
-		print(color("red","[-]POST请求失败\n"))
+		output.print_error("[-]POST请求失败\n")
 		time.sleep(0.5)
-	
+
 def find_last(string,str):
 	positions = []
 	last_position=-1
@@ -121,12 +155,12 @@ def Extract_html(URL):
 	
 def find_by_url(url):
 		try:
-			print("url:" + url)
+			output.print_info("url:" + url)
 		except:
-			print("Please specify a URL like https://www.baidu.com")
+			output.print_info("Please specify a URL like https://www.baidu.com")
 		html_raw = Extract_html(url)
 		if html_raw == None: 
-			print("Fail to access " + url)
+			output.print_info("Fail to access " + url)
 			return None
 		#print(html_raw)
 		html = BeautifulSoup(html_raw, "html.parser")
@@ -154,7 +188,7 @@ def find_by_url(url):
 		result = []
 		for i in allurls:
 			for j in allurls[i]:
-				print(color("green",f"[+]{j}发现于{i}"))
+				output.print_url(f"{j}发现于{i}")
 				temp1 = urlparse(j)
 				temp2 = urlparse(url)
 				#print(temp1.netloc)
