@@ -4,6 +4,10 @@ from bs4 import BeautifulSoup
 import argparse
 import time
 import sys
+import fake_useragent
+
+# 使用fake_useragent生成随机UA
+ua = fake_useragent.UserAgent()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-u", "--url", help="The website" ,required=True)
@@ -44,7 +48,7 @@ class OutputManager:
 output = OutputManager(arg.silent)
 
 def do_request(url):
-	header = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.108 Safari/537.36"}
+	header = {"User-Agent": ua.random}
 	output.print_info(output.color("yellow",f"[+]正在尝试请求{url}"))
 	
 	# GET
@@ -144,7 +148,7 @@ def extract_URL(JS):
 	return rr
 
 def Extract_html(URL):
-	header = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.108 Safari/537.36"}
+	header = {"User-Agent": ua.random}
 	try:
 		raw = requests.get(URL, headers = header, timeout=3,cookies=arg.cookie)
 		raw = raw.content.decode("utf-8", "ignore")
