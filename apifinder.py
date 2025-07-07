@@ -5,20 +5,44 @@ import argparse
 import time
 import sys
 import fake_useragent
+import json
+import os
+from datetime import datetime
 
 # 使用fake_useragent生成随机UA
 ua = fake_useragent.UserAgent()
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-u", "--url", help="The website" ,required=True)
-parser.add_argument("-c", "--cookie", help="The website cookie")
-parser.add_argument("-s", "--silent", action="store_true", help="silent mode, only output the found API endpoints")
+parser = argparse.ArgumentParser(description="Api-Finder v0.3")
+parser.add_argument("-u", "--url", help="目标网站URL", required=True)
+parser.add_argument("-c", "--cookie", help="网站Cookie")
+parser.add_argument("-s", "--silent", action="store_true", help="静默模式，只输出发现的API端点")
+parser.add_argument("-o", "--output", help="输出文件路径 (目前支持 .txt, .json, .csv 格式, 默认不输出)")
+parser.add_argument("-t", "--timeout", type=int, default=10, help="请求超时时间 (默认: 10秒)")
+parser.add_argument("-d", "--delay", type=float, default=0.5, help="请求间隔时间 (默认: 0.5秒)")
+parser.add_argument("-v", "--verbose", action="store_true", help="详细输出模式")
 arg = parser.parse_args()
 
 # 我这里把之前的print_silent函数改成了OutputManager类，后续好添加新的功能
 class OutputManager:
-	def __init__(self, silent_mode):
+	"""
+	OutputManager类是用来管理输出的，包括打印信息、保存结果
+	silent_mode: 静默模式，只输出发现的API端点
+	verbose_mode: 详细输出模式
+	output_file: 输出文件路径
+	results: 结果列表
+	stats: 统计信息
+	"""
+	def __init__(self, silent_mode, verbose_mode=False, output_file=None):
 		self.silent_mode = silent_mode
+		self.verbose_mode = verbose_mode
+		self.output_file = output_file
+		self.results = []
+		self.stats = {
+			"total_urls": 0,
+			"successful_requests": 0,
+			"failed_requests": 0,
+			"api_endpoints": 0
+		}
 	
 	def color(self, c, text):
 		if self.silent_mode:
@@ -29,50 +53,154 @@ class OutputManager:
 			return "\033[0;32;40m"+text+"\033[0m"
 		if c=="yellow":
 			return "\033[0;33;40m"+text+"\033[0m"
+		if c=="blue":
+			return "\033[0;34;40m"+text+"\033[0m"
+		if c=="cyan":
+			return "\033[0;36;40m"+text+"\033[0m"
 	
 	def print_info(self, text):
 		if not self.silent_mode:
 			print(text)
 	
-	def print_url(self, url):
+	def print_verbose(self, text):
+		if self.verbose_mode and not self.silent_mode:
+			print(self.color("cyan", f"[DEBUG] {text}"))
+	
+	def print_url(self, url, source=""):
 		if self.silent_mode:
 			print(url)
 		else:
-			print(self.color("green", f"[+]{url}"))
+			output_text = f"[+]{url}"
+			if source:
+				output_text += f" (发现于: {source})"
+			print(self.color("green", output_text))
+		
+		# 保存结果
+		self.results.append({
+			"url": url,
+			"source": source,
+			"timestamp": datetime.now().isoformat()
+		})
+		self.stats["api_endpoints"] += 1
 	
 	def print_error(self, text):
 		if not self.silent_mode:
-			print(self.color("red", text))
+			print(self.color("red", f"[-] {text}"))
+	
+	def print_warning(self, text):
+		if not self.silent_mode:
+			print(self.color("yellow", f"[!] {text}"))
+	
+	def print_success(self, text):
+		if not self.silent_mode:
+			print(self.color("green", f"[+] {text}"))
+	
+	def print_stats(self):
+		if not self.silent_mode:
+			print("\n" + "="*50)
+			print(self.color("blue", "扫描统计信息:"))
+			print(f"总URL数: {self.stats['total_urls']}")
+			print(f"成功请求: {self.stats['successful_requests']}")
+			print(f"失败请求: {self.stats['failed_requests']}")
+			print(f"发现API端点: {self.stats['api_endpoints']}")
+			print("="*50)
+	
+	def save_results(self):
+		if not self.output_file:
+			return
+		
+		try:
+			file_ext = os.path.splitext(self.output_file)[1].lower()
+			
+			if file_ext == '.json':
+				with open(self.output_file, 'w', encoding='utf-8') as f:
+					json.dump({
+						"scan_info": {
+							"target_url": arg.url,
+							"scan_time": datetime.now().isoformat(),
+							"stats": self.stats
+						},
+						"results": self.results
+					}, f, ensure_ascii=False, indent=2)
+			
+			elif file_ext == '.txt':
+				with open(self.output_file, 'w', encoding='utf-8') as f:
+					f.write(f"API端点扫描结果\n")
+					f.write(f"目标URL: {arg.url}\n")
+					f.write(f"扫描时间: {datetime.now().isoformat()}\n")
+					f.write(f"发现端点数: {self.stats['api_endpoints']}\n")
+					f.write("-" * 50 + "\n")
+					for result in self.results:
+						f.write(f"{result['url']}\n")
+			
+			elif file_ext == '.csv':
+				import csv
+				with open(self.output_file, 'w', newline='', encoding='utf-8') as f:
+					writer = csv.writer(f)
+					writer.writerow(['URL', 'Source', 'Timestamp'])
+					for result in self.results:
+						writer.writerow([result['url'], result['source'], result['timestamp']])
+			
+			if not self.silent_mode:
+				print(self.color("green", f"[+] 结果已保存到: {self.output_file}"))
+				
+		except Exception as e:
+			self.print_error(f"保存结果失败: {str(e)}")
 
-# init 一下 
-output = OutputManager(arg.silent)
+# 初始化输出管理器
+output = OutputManager(arg.silent, arg.verbose, arg.output)
 
 def do_request(url):
 	header = {"User-Agent": ua.random}
-	output.print_info(output.color("yellow",f"[+]正在尝试请求{url}"))
+	output.print_verbose(f"正在尝试请求: {url}")
+	output.stats["total_urls"] += 1
 	
 	# GET
 	try:
-		get_res = requests.get(url,headers=header,cookies=arg.cookie).text.replace(" ","").replace("\n","")
+		get_res = requests.get(url, headers=header, cookies=arg.cookie, timeout=arg.timeout)
+		get_res.raise_for_status()
+		response_text = get_res.text.replace(" ", "").replace("\n", "")
+		
 		if output.silent_mode:
-			print(url) 
+			print(url)
 		else:
-			output.print_info(output.color("green",f"[+]GET请求回显"))
-			output.print_info(f"{get_res[:200]}......")
+			output.print_success("GET请求成功")
+			if output.verbose_mode:
+				output.print_verbose(f"响应长度: {len(response_text)} 字符")
+				output.print_verbose(f"响应预览: {response_text[:200]}...")
+		
+		output.stats["successful_requests"] += 1
+		
+	except requests.exceptions.RequestException as e:
+		output.print_error(f"GET请求失败: {str(e)}")
+		output.stats["failed_requests"] += 1
 	except Exception as e:
-		output.print_error("[-]GET请求失败")
+		output.print_error(f"GET请求异常: {str(e)}")
+		output.stats["failed_requests"] += 1
 	
-	# POST
+	# POST请求
 	try:
-		post_res = requests.post(url,headers=header,cookies=arg.cookie).text.replace(" ","").replace("\n","")
+		post_res = requests.post(url, headers=header, cookies=arg.cookie, timeout=arg.timeout)
+		post_res.raise_for_status()
+		response_text = post_res.text.replace(" ", "").replace("\n", "")
+		
 		if not output.silent_mode:
-			output.print_info(output.color("green",f"[+]POST请求回显"))
-			output.print_info(f"{post_res[:200]}......\n")
-		else:
-			print() 
+			output.print_success("POST请求成功")
+			if output.verbose_mode:
+				output.print_verbose(f"响应长度: {len(response_text)} 字符")
+				output.print_verbose(f"响应预览: {response_text[:200]}...")
+		
+		output.stats["successful_requests"] += 1
+		
+	except requests.exceptions.RequestException as e:
+		output.print_error(f"POST请求失败: {str(e)}")
+		output.stats["failed_requests"] += 1
 	except Exception as e:
-		output.print_error("[-]POST请求失败\n")
-		time.sleep(0.5)
+		output.print_error(f"POST请求异常: {str(e)}")
+		output.stats["failed_requests"] += 1
+	
+	# 请求间隔
+	time.sleep(arg.delay)
 
 def find_last(string,str):
 	positions = []
@@ -147,60 +275,115 @@ def extract_URL(JS):
 			rr.append(match.group().strip('"').strip("'"))
 	return rr
 
+# 获取HTML内容
 def Extract_html(URL):
+	"""
+	URL: 目标URL
+	header: 请求头
+	raw: 请求返回的内容
+	content: 解析后的HTML内容
+	return: 返回HTML内容
+	"""
 	header = {"User-Agent": ua.random}
 	try:
-		raw = requests.get(URL, headers = header, timeout=3,cookies=arg.cookie)
-		raw = raw.content.decode("utf-8", "ignore")
-		#print(raw)
-		return raw
+		raw = requests.get(URL, headers=header, timeout=arg.timeout, cookies=arg.cookie)
+		raw.raise_for_status()
+		content = raw.content.decode("utf-8", "ignore")
+		output.print_verbose(f"成功获取HTML内容: {URL}")
+		return content
+	except requests.exceptions.RequestException as e:
+		output.print_error(f"获取HTML失败 {URL}: {str(e)}")
+		return None
+	except Exception as e:
+		output.print_error(f"获取HTML异常 {URL}: {str(e)}")
+		return None
+
+
+def find_by_url(url):
+	try:
+		output.print_info(f"开始扫描目标: {url}")
 	except:
+		output.print_info("请指定一个有效的URL，例如: https://www.baidu.com")
 		return None
 	
-def find_by_url(url):
-		try:
-			output.print_info("url:" + url)
-		except:
-			output.print_info("Please specify a URL like https://www.baidu.com")
-		html_raw = Extract_html(url)
-		if html_raw == None: 
-			output.print_info("Fail to access " + url)
-			return None
-		#print(html_raw)
-		html = BeautifulSoup(html_raw, "html.parser")
-		html_scripts = html.findAll("script")
-		#print(html_scripts)
-		script_array = {}
-		script_temp = ""
-		for html_script in html_scripts:
-			script_src = html_script.get("src")
-			if script_src == None:
-				script_temp += html_script.get_text() + "\n"
+	html_raw = Extract_html(url)
+	if html_raw == None: 
+		output.print_error(f"无法访问 {url}")
+		return None
+	
+	output.print_verbose("开始解析HTML内容...")
+	html = BeautifulSoup(html_raw, "html.parser")
+	html_scripts = html.findAll("script")
+	output.print_verbose(f"发现 {len(html_scripts)} 个script标签")
+	
+	script_array = {}
+	script_temp = ""
+	
+	for html_script in html_scripts:
+		script_src = html_script.get("src")
+		if script_src == None:
+			script_temp += html_script.get_text() + "\n"
+		else:
+			purl = process_url(url, script_src)
+			script_content = Extract_html(purl)
+			if script_content:
+				script_array[purl] = script_content
 			else:
-				purl = process_url(url, script_src)
-				script_array[purl] = Extract_html(purl)
-		script_array[url] = script_temp
-		#for i in script_array:
-		#	print(i)
-		allurls = {}
-		for script in script_array:
-			#print(script)
-			temp_urls = extract_URL(script_array[script])
-			if len(temp_urls) == 0: continue
-			for temp_url in temp_urls:
-				allurls[script] = temp_urls 
-		result = []
-		for i in allurls:
-			for j in allurls[i]:
-				output.print_url(f"{j}发现于{i}")
-				temp1 = urlparse(j)
-				temp2 = urlparse(url)
-				#print(temp1.netloc)
-				if temp1.netloc != urlparse("1").netloc:
-					do_request(j)
-				else:
-					do_request(temp2.scheme+"://"+temp2.netloc+j)
-				
-		return result
+				output.print_warning(f"无法获取外部脚本: {purl}")
+	
+	script_array[url] = script_temp
+	
+	allurls = {}
+	for script in script_array:
+		output.print_verbose(f"分析脚本: {script}")
+		temp_urls = extract_URL(script_array[script])
+		if len(temp_urls) == 0: 
+			output.print_verbose("未发现URL")
+			continue
+		output.print_verbose(f"发现 {len(temp_urls)} 个URL")
+		for temp_url in temp_urls:
+			allurls[script] = temp_urls
+	
+	result = []
+	for i in allurls:
+		for j in allurls[i]:
+			output.print_url(j, i)
+			temp1 = urlparse(j)
+			temp2 = urlparse(url)
+			
+			if temp1.netloc != urlparse("1").netloc:
+				do_request(j)
+			else:
+				do_request(temp2.scheme+"://"+temp2.netloc+j)
+	
+	return result
 
-find_by_url(arg.url)
+
+# 设置一个主函数，方便后续添加新的功能
+def main():
+	try:
+		output.print_info("="*50)
+		# 这里添加一个版本号
+		output.print_info("Api-Finder v0.3")
+		# Github仓库 : https://github.com/jujubooom/Api-Finder
+		output.print_info("Github: https://github.com/jujubooom/Api-Finder")
+		output.print_info("="*50)
+		
+		results = find_by_url(arg.url)
+		# 显示统计信息
+		output.print_stats()
+		
+		# 保存结果
+		output.save_results()
+
+	# 处理中途退出情况，防止输出一堆报错	
+	except KeyboardInterrupt:
+		output.print_warning("用户中断扫描")
+		output.print_stats()
+		output.save_results()
+	except Exception as e:
+		output.print_error(f"程序执行异常: {str(e)}")
+		sys.exit(1)
+
+if __name__ == "__main__":
+	main()
