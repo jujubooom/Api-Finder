@@ -1,3 +1,6 @@
+from numbers import Number
+from random import Random, random
+from weakref import proxy
 import requests, re
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
@@ -13,6 +16,7 @@ from datetime import datetime
 ua = fake_useragent.UserAgent()
 
 parser = argparse.ArgumentParser(description="Api-Finder v0.3")
+parser.add_argument("-p", "--proxy", help="代理地址，若输入为0自动获取代理池并使用，支持socks5和http")
 parser.add_argument("-u", "--url", help="目标网站URL", required=True)
 parser.add_argument("-c", "--cookie", help="网站Cookie")
 parser.add_argument("-s", "--silent", action="store_true", help="静默模式，只输出发现的API端点")
@@ -94,6 +98,19 @@ class OutputManager:
 	def print_success(self, text):
 		if not self.silent_mode:
 			print(self.color("green", f"[+] {text}"))
+
+	# 输出使用的代理模式
+	def print_proxy_mode(self, proxies):
+		if not self.silent_mode:
+			print(self.color("blue", "使用的代理模式:"))
+			if proxies:
+				if isinstance(proxies, list):
+					for proxy in proxies:
+						print(self.color("blue", f" - {proxy}"))
+				elif isinstance(proxies, dict):
+					for protocol, proxy in proxies.items():
+						print(self.color("blue", f" - {protocol}: {proxy}"))
+
 	
 	def print_stats(self):
 		if not self.silent_mode:
@@ -149,15 +166,64 @@ class OutputManager:
 
 # 初始化输出管理器
 output = OutputManager(arg.silent, arg.verbose, arg.output)
+proxies_global = None
+
+def do_proxys():
+	global proxies_global
+	
+	if proxies_global is not None:
+		return proxies_global
+	
+	if arg.proxy == "0":
+		# 自动获取代理列表
+		header = {"User-Agent": ua.random}
+		proxy_response = requests.get("https://proxy.scdn.io/api/get_proxy.php?protocol=socks5&count=5", headers=header).text
+		proxy_data = json.loads(proxy_response)
+		if proxy_data.get("code") == 200 and "data" in proxy_data and "proxies" in proxy_data["data"]:
+			proxies_global = proxy_data["data"]["proxies"]
+		else:
+			output.print_error("获取代理列表失败")
+			proxies_global = []
+
+	elif arg.proxy:
+		# 判断代理类型是否为socks5
+		if arg.proxy.startswith('socks5://'):
+			proxies_global = {
+				"http": arg.proxy,
+				"https": arg.proxy
+			}
+		# 普通http/https代理
+		else:
+			proxies_global = {
+				"http": arg.proxy if arg.proxy.startswith('http') else f'http://{arg.proxy}',
+				"https": arg.proxy if arg.proxy.startswith('http') else f'http://{arg.proxy}'
+			}
+	
+	return proxies_global
+
+	
+
+
 
 def do_request(url):
 	header = {"User-Agent": ua.random}
 	output.print_verbose(f"正在尝试请求: {url}")
 	output.stats["total_urls"] += 1
-	
+
+	proxies = do_proxys()
+	if proxies and isinstance(proxies, list):
+		proxies = {
+			"socks5": proxies[Random().randint(0,len(proxies)-1)],
+		}
+
+
 	# GET
 	try:
-		get_res = requests.get(url, headers=header, cookies=arg.cookie, timeout=arg.timeout)
+		if proxies:
+			get_res = requests.get(url, headers=header, cookies=arg.cookie, timeout=arg.timeout, proxies=proxies)
+			# print(proxies)
+		else:
+			get_res = requests.get(url, headers=header, cookies=arg.cookie, timeout=arg.timeout)
 		get_res.raise_for_status()
 		response_text = get_res.text.replace(" ", "").replace("\n", "")
 		
@@ -368,7 +434,10 @@ def main():
 		# Github仓库 : https://github.com/jujubooom/Api-Finder
 		output.print_info("Github: https://github.com/jujubooom/Api-Finder")
 		output.print_info("="*50)
-		
+
+		# 显示代理模式
+		output.print_proxy_mode(do_proxys())
+
 		results = find_by_url(arg.url)
 		# 显示统计信息
 		output.print_stats()
