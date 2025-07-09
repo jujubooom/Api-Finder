@@ -1,30 +1,46 @@
-from numbers import Number
-from random import Random, random
-from weakref import proxy
+import random
 import requests, re
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import argparse
 import time
 import sys
-import fake_useragent
 import json
 import os
 from datetime import datetime
 
-# 使用fake_useragent生成随机UA
-ua = fake_useragent.UserAgent()
-
 parser = argparse.ArgumentParser(description="Api-Finder v0.3")
-parser.add_argument("-p", "--proxy", help="代理地址，若输入为0自动获取代理池并使用，支持socks5和http")
 parser.add_argument("-u", "--url", help="目标网站URL", required=True)
 parser.add_argument("-c", "--cookie", help="网站Cookie")
+parser.add_argument("-p", "--proxy", help="代理地址，若输入为0自动获取代理池并使用，支持socks5和http")
 parser.add_argument("-s", "--silent", action="store_true", help="静默模式，只输出发现的API端点")
 parser.add_argument("-o", "--output", help="输出文件路径 (目前支持 .txt, .json, .csv 格式, 默认不输出)")
 parser.add_argument("-t", "--timeout", type=int, default=10, help="请求超时时间 (默认: 10秒)")
 parser.add_argument("-d", "--delay", type=float, default=0.5, help="请求间隔时间 (默认: 0.5秒)")
 parser.add_argument("-v", "--verbose", action="store_true", help="详细输出模式")
+parser.add_argument("-r", "--random", action="store_true", help="随机UA")
+parser.add_argument("-a", "--app", help="设备UA，默认为电脑浏览器UA，weixin-微信UA，phone-手机UA",default='common')
 arg = parser.parse_args()
+
+class UaManager:
+
+	MyUa = {
+		'common': ["Mozilla/5.0 (Windows NT 6.1; WOW64; rv:34.0) Gecko/20100101 Firefox/34.0","Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"],
+		'weixin': ["Mozilla/5.0 (Linux; Android 9; COL-AL10 Build/HUAWEICOL-AL10; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/85.0.3527.52 MQQBrowser/6.2 TBS/044607 Mobile Safari/537.36 MMWEBID/7140 MicroMessenger/7.0.4.1420(0x27000437) Process/tools NetType/4G Language/zh_CN","Mozilla/5.0 (Linux; Android 13; V2148A Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/116.0.0.0 Mobile Safari/537.36 XWEB/1160117 MMWEBSDK/20240404 MMWEBID/8833 MicroMessenger/8.0.49.2600(0x28003137) WeChat/arm64 Weixin NetType/WIFI Language/zh_CN ABI/arm64","Mozilla/5.0 (Linux; Android 12; NOH-AL00 Build/HUAWEINOH-AL00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/116.0.0.0 Mobile Safari/537.36 XWEB/1160117 MMWEBSDK/20240404 MMWEBID/6916 MicroMessenger/8.0.49.2600(0x28003136) WeChat/arm64 Weixin NetType/4G Language/zh_CN ABI/arm64"],
+		'phone': ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)","Mozilla/5.0 (Linux; U; Android 9; zh-cn; Redmi Note 5 Build/PKQ1.180904.001) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/71.0.3578.141 Mobile Safari/537.36 XiaoMi/MiuiBrowser/11.10.8","Mozilla/5.0 (Linux; Android 9; MI 6 Build/PKQ1.190118.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/76.0.3809.89 Mobile Safari/537.36 T7/11.20 SP-engine/2.16.0 baiduboxapp/11.20.2.3 (Baidu; P1 9)"],
+	}
+
+	def __init__(self, app='common' , isRand=False):
+		self.app = app
+		self.isRand = isRand
+
+	def getUa(self):
+		if self.isRand:
+			return self.MyUa[self.app][random.randint(0,len(self.MyUa[self.app])-1)]
+		else:
+			return self.MyUa[self.app][0]
+
+Uam = UaManager(arg.app,arg.random)
 
 # 我这里把之前的print_silent函数改成了OutputManager类，后续好添加新的功能
 class OutputManager:
@@ -176,7 +192,7 @@ def do_proxys():
 	
 	if arg.proxy == "0":
 		# 自动获取代理列表
-		header = {"User-Agent": ua.random}
+		header = {"User-Agent": Uam.getUa()}
 		proxy_response = requests.get("https://proxy.scdn.io/api/get_proxy.php?protocol=socks5&count=5", headers=header).text
 		proxy_data = json.loads(proxy_response)
 		if proxy_data.get("code") == 200 and "data" in proxy_data and "proxies" in proxy_data["data"]:
@@ -206,14 +222,14 @@ def do_proxys():
 
 
 def do_request(url):
-	header = {"User-Agent": ua.random}
+	header = {"User-Agent": Uam.getUa()}
 	output.print_verbose(f"正在尝试请求: {url}")
 	output.stats["total_urls"] += 1
 
 	proxies = do_proxys()
 	if proxies and isinstance(proxies, list):
 		proxies = {
-			"socks5": proxies[Random().randint(0,len(proxies)-1)],
+			"socks5": proxies[random.randint(0,len(proxies)-1)],
 		}
 
 
@@ -350,7 +366,7 @@ def Extract_html(URL):
 	content: 解析后的HTML内容
 	return: 返回HTML内容
 	"""
-	header = {"User-Agent": ua.random}
+	header = {"User-Agent": Uam.getUa()}
 	try:
 		raw = requests.get(URL, headers=header, timeout=arg.timeout, cookies=arg.cookie)
 		raw.raise_for_status()
