@@ -1,3 +1,9 @@
+"""
+@date: 2025
+@version: 0.3.1
+@description: 用于扫描API端点
+"""
+
 import random
 import requests, re
 from urllib.parse import urlparse
@@ -8,6 +14,8 @@ import sys
 import json
 import os
 from datetime import datetime
+from ua_manager import UaManager
+from utils import URLProcessor, URLExtractor
 
 parser = argparse.ArgumentParser(description="Api-Finder v0.3")
 parser.add_argument("-u", "--url", help="目标网站URL", required=True)
@@ -22,25 +30,8 @@ parser.add_argument("-r", "--random", action="store_true", help="随机UA")
 parser.add_argument("-a", "--app", help="设备UA，默认为电脑浏览器UA，weixin-微信UA，phone-手机UA",default='common')
 arg = parser.parse_args()
 
-class UaManager:
-
-	MyUa = {
-		'common': ["Mozilla/5.0 (Windows NT 6.1; WOW64; rv:34.0) Gecko/20100101 Firefox/34.0","Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"],
-		'weixin': ["Mozilla/5.0 (Linux; Android 9; COL-AL10 Build/HUAWEICOL-AL10; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/85.0.3527.52 MQQBrowser/6.2 TBS/044607 Mobile Safari/537.36 MMWEBID/7140 MicroMessenger/7.0.4.1420(0x27000437) Process/tools NetType/4G Language/zh_CN","Mozilla/5.0 (Linux; Android 13; V2148A Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/116.0.0.0 Mobile Safari/537.36 XWEB/1160117 MMWEBSDK/20240404 MMWEBID/8833 MicroMessenger/8.0.49.2600(0x28003137) WeChat/arm64 Weixin NetType/WIFI Language/zh_CN ABI/arm64","Mozilla/5.0 (Linux; Android 12; NOH-AL00 Build/HUAWEINOH-AL00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/116.0.0.0 Mobile Safari/537.36 XWEB/1160117 MMWEBSDK/20240404 MMWEBID/6916 MicroMessenger/8.0.49.2600(0x28003136) WeChat/arm64 Weixin NetType/4G Language/zh_CN ABI/arm64"],
-		'phone': ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)","Mozilla/5.0 (Linux; U; Android 9; zh-cn; Redmi Note 5 Build/PKQ1.180904.001) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/71.0.3578.141 Mobile Safari/537.36 XiaoMi/MiuiBrowser/11.10.8","Mozilla/5.0 (Linux; Android 9; MI 6 Build/PKQ1.190118.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/76.0.3809.89 Mobile Safari/537.36 T7/11.20 SP-engine/2.16.0 baiduboxapp/11.20.2.3 (Baidu; P1 9)"],
-	}
-
-	def __init__(self, app='common' , isRand=False):
-		self.app = app
-		self.isRand = isRand
-
-	def getUa(self):
-		if self.isRand:
-			return self.MyUa[self.app][random.randint(0,len(self.MyUa[self.app])-1)]
-		else:
-			return self.MyUa[self.app][0]
-
-Uam = UaManager(arg.app,arg.random)
+# 初始化UA管理器
+Uam = UaManager(arg.app, arg.random)
 
 # 我这里把之前的print_silent函数改成了OutputManager类，后续好添加新的功能
 class OutputManager:
@@ -295,67 +286,7 @@ def find_last(string,str):
 	return positions
 
 # Handling relative URLs
-def process_url(URL, re_URL):
-	black_url = ["javascript:"]	# Add some keyword for filter url.
-	URL_raw = urlparse(URL)
-	ab_URL = URL_raw.netloc
-	host_URL = URL_raw.scheme
-	if re_URL[0:2] == "//":
-		result = host_URL  + ":" + re_URL
-	elif re_URL[0:4] == "http":
-		result = re_URL
-	elif re_URL[0:2] != "//" and re_URL not in black_url:
-		if re_URL[0:1] == "/":
-			result = host_URL + "://" + ab_URL + re_URL
-		else:
-			if re_URL[0:1] == ".":
-				if re_URL[0:2] == "..":
-					result = host_URL + "://" + ab_URL + re_URL[2:]
-				else:
-					result = host_URL + "://" + ab_URL + re_URL[1:]
-			else:
-				result = host_URL + "://" + ab_URL + "/" + re_URL
-	else:
-		result = URL
-	return result
-
-# Regular expression comes from https://github.com/GerbenJavado/LinkFinder
-def extract_URL(JS):
-	filter_key = [".png",".jpg",".css",".webp",".apk",".exe",".dmg"]
-	pattern_raw = r"""
-	  (?:"|')                               # Start newline delimiter
-	  (
-	    ((?:[a-zA-Z]{1,10}://|//)           # Match a scheme [a-Z]*1-10 or //
-	    [^"'/]{1,}\.                        # Match a domainname (any character + dot)
-	    [a-zA-Z]{2,}[^"']{0,})              # The domainextension and/or path
-	    |
-	    ((?:/|\.\./|\./)                    # Start with /,../,./
-	    [^"'><,;| *()(%%$^/\\\[\]]          # Next character can't be...
-	    [^"'><,;|()]{1,})                   # Rest of the characters can't be
-	    |
-	    ([a-zA-Z0-9_\-/]{1,}/               # Relative endpoint with /
-	    [a-zA-Z0-9_\-/]{1,}                 # Resource name
-	    \.(?:[a-zA-Z]{1,4}|action)          # Rest + extension (length 1-4 or action)
-	    (?:[\?|/][^"|']{0,}|))              # ? mark with parameters
-	    |
-	    ([a-zA-Z0-9_\-]{1,}                 # filename
-	    \.(?:php|asp|aspx|jsp|json|
-	         action|html|js|txt|xml)             # . + extension
-	    (?:\?[^"|']{0,}|))                  # ? mark with parameters
-	  )
-	  (?:"|')                               # End newline delimiter
-	"""
-	pattern = re.compile(pattern_raw, re.VERBOSE)
-	result = re.finditer(pattern, str(JS))
-	rr = []
-	if result == None:
-		return None
-	for match in result:
-		if any(sub in match.group() for sub in filter_key):
-			pass
-		else:
-			rr.append(match.group().strip('"').strip("'"))
-	return rr
+# 删除原有的 process_url 和 extract_URL 函数定义
 
 # 获取HTML内容
 def Extract_html(URL):
@@ -406,7 +337,7 @@ def find_by_url(url):
 		if script_src == None:
 			script_temp += html_script.get_text() + "\n"
 		else:
-			purl = process_url(url, script_src)
+			purl = URLProcessor.process_url(url, script_src)
 			script_content = Extract_html(purl)
 			if script_content:
 				script_array[purl] = script_content
@@ -418,7 +349,7 @@ def find_by_url(url):
 	allurls = {}
 	for script in script_array:
 		output.print_verbose(f"分析脚本: {script}")
-		temp_urls = extract_URL(script_array[script])
+		temp_urls = URLExtractor.extract_urls(script_array[script])
 		if len(temp_urls) == 0: 
 			output.print_verbose("未发现URL")
 			continue
