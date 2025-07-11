@@ -15,7 +15,7 @@ import json
 import os
 from datetime import datetime
 from ua_manager import UaManager
-from utils import URLProcessor, URLExtractor
+from utils import URLProcessor, URLExtractor, UpdateManager
 from i18n import i18n
 import threading
 import pyfiglet
@@ -37,6 +37,7 @@ parser.add_argument("-d", "--delay", type=float, default=0.5, help=i18n.get('arg
 parser.add_argument("-v", "--verbose", action="store_true", help=i18n.get('arg_verbose_help'))
 parser.add_argument("-r", "--random", action="store_true", help=i18n.get('arg_random_help'))
 parser.add_argument("-a", "--app", help=i18n.get('arg_app_help'), default='common')
+parser.add_argument("-U", "--update", action="store_true", help="强制更新规则文件 (Force update of the rules file)")
 arg = parser.parse_args()
 
 # 初始化Rich Console (Initialize Rich Console)
@@ -148,6 +149,15 @@ class OutputManager:
 	def print_success(self, text):
 		if not self.silent_mode:
 			self.console.print(f"[green bold]✓[/green bold] {text}")
+
+	def print_title(self, url, title):
+		"""打印成功请求的页面标题"""
+		if not self.silent_mode:
+			text = Text()
+			text.append("📄 Title for ", style="green")
+			text.append(f"{url}", style="cyan dim")
+			text.append(f": {title}", style="yellow")
+			self.console.print(text)
 
 	# 输出使用的代理模式 (Output proxy mode used)
 	def print_proxy_mode(self, proxies):
@@ -326,12 +336,12 @@ def do_request(url):
 	# 创建并启动线程
 	get_thread = threading.Thread(
 		target=make_request,
-		args=("GET", url, arg.cookie, arg.timeout, result_store)
+		args=("GET", url, {"Cookie": arg.cookie}, arg.timeout, result_store)
 	)
 
 	post_thread = threading.Thread(
 		target=make_request,
-		args=("POST", url, arg.cookie, arg.timeout, result_store)
+		args=("POST", url, {"Cookie": arg.cookie}, arg.timeout, result_store)
 	)
 
 	# 启动线程
@@ -341,26 +351,45 @@ def do_request(url):
 	# 等待两个线程完成
 	get_thread.join()
 	post_thread.join()
+	
+	response_text_to_return = None
 
 	# 统一输出结果 (Unified output results)
 	for method in ["GET", "POST"]:
 		result = result_store.results[method]
 		if result["success"]:
+			response_text = result['response']
+			
+			if method == "GET":
+				response_text_to_return = response_text
+				# 尝试解析和打印标题
+				try:
+					if response_text and '<html' in response_text.lower():
+						soup = BeautifulSoup(response_text, 'html.parser')
+						if soup.title and soup.title.string:
+							title = soup.title.string.strip().replace('\\n', '').replace('\\r', '')
+							if title:
+								output.print_title(url, title)
+				except Exception as e:
+					output.print_verbose(f"Could not parse title from {url}: {e}")
+
 			if method == "GET" and output.silent_mode:
 				print(url)
 			elif not output.silent_mode:
-				output.print_success(f"{method} request successful")
+				output.print_success(f"{method} request successful for {url}")
 				if output.verbose_mode:
-					res_len = len(result["response"])
+					res_len = len(response_text)
 					output.print_verbose(f"📏 Response length: {res_len} characters")
-					output.print_verbose(f"👀 Response preview: {result['response'][:200]}...")
+					output.print_verbose(f"👀 Response preview: {response_text[:200]}...")
 
 			output.stats["successful_requests"] += 1
 		else:
-			output.print_error(f"{method} request failed: {result['error']}")
+			output.print_error(f"{method} request failed for {url}: {result['error']}")
 			output.stats["failed_requests"] += 1
+	
 	# 请求间隔
 	time.sleep(arg.delay)
+	return response_text_to_return
 
 def find_last(string,str):
 	positions = []
@@ -460,29 +489,32 @@ def find_by_url(url):
 
 # 设置一个主函数，方便后续添加新的功能
 def main():
+	"""主函数"""
+	
+	# 首先处理更新检查
+	if arg.update:
+		UpdateManager.check_for_updates(force_update=True)
+		sys.exit(0)
+	else:
+		UpdateManager.check_for_updates(force_update=False)
+
+	if not arg.silent:
+		show_logo()
+	
 	try:
-		# 除了静默模式，其他情况下显示项目logo
-		if not arg.silent:
-			show_logo()
+		url = arg.url
 		
 		# 显示代理模式
 		output.print_proxy_mode(do_proxys())
 
-		results = find_by_url(arg.url)
-		# 显示统计信息
-		output.print_stats()
-		
-		# 保存结果
-		output.save_results()
-
-	# 处理中途退出情况，防止输出一堆报错
-	except KeyboardInterrupt:
-		output.print_warning("🛑 User interrupted scan")
-		output.print_stats()
-		output.save_results()
+		results = find_by_url(url)
+	
 	except Exception as e:
-		output.print_error(f"Program execution exception: {str(e)}")
-		sys.exit(1)
+		output.print_error(f"Error: {str(e)}")
+	
+	finally:
+		output.print_stats()
+		output.save_results()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 	main()
