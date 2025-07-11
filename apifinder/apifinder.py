@@ -14,9 +14,9 @@ import sys
 import json
 import os
 from datetime import datetime
-from ua_manager import UaManager
-from utils import URLProcessor, URLExtractor, UpdateManager
-from i18n import i18n
+from .ua_manager import UaManager
+from .utils import URLProcessor, URLExtractor, UpdateManager
+from .i18n import i18n
 import threading
 import pyfiglet
 from rich.console import Console

@@ -1,0 +1,29 @@
+version_timestamp: 20240101000000
+last_check_timestamp: '20250712001022'
+url_extractor_pattern: "(?:\"|')                               # Start newline delimiter\n\
+  (\n  ((?:[a-zA-Z]{1,10}://|//)           # Match a scheme [a-Z]*1-10 or //\n  [^\"\
+  '/]{1,}\\.                        # Match a domainname (any character + dot)\n \
+  \ [a-zA-Z]{2,}[^\"']{0,})              # The domainextension and/or path\n  |\n\
+  \  ((?:/|\\.\\./|\\./)                    # Start with /,../,./\n  [^\"'><,;| *()(%%$^/\\\
+  \\\\[\\]]          # Next character can't be...\n  [^\"'><,;|()]{1,})          \
+  \         # Rest of the characters can't be\n  |\n  ([a-zA-Z0-9_\\-/]{1,}/     \
+  \          # Relative endpoint with /\n  [a-zA-Z0-9_\\-/]{1,}                 #\
+  \ Resource name\n  \\.(?:[a-zA-Z]{1,4}|action)          # Rest + extension (length\
+  \ 1-4 or action)\n  (?:[\\?|/][^\"|']{0,}|))              # ? mark with parameters\n\
+  \  |\n  ([a-zA-Z0-9_\\-]{1,}                 # filename\n  \\.(?:php|asp|aspx|jsp|json|\n\
+  \       action|html|js|txt|xml)             # . + extension\n  (?:\\?[^\"|']{0,}|))\
+  \                  # ? mark with parameters\n)\n(?:\"|')                       \
+  \        # End newline delimiter\n"
+ignored_domains:
+- developer.apple.com
+- github.com
+- json-schema.org
+- ns.adobe.com
+- schemas.android.com
+- www.apple.com
+- www.iana.org
+- www.json.org
+- www.microsoft.com
+- www.mozilla.org
+- www.w3.org
+- www.whatwg.org

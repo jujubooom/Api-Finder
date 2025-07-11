@@ -10,11 +10,13 @@ import yaml
 import requests
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
-from config import DEFAULT_CONFIG
+from .config import DEFAULT_CONFIG
 
 def load_rules():
     """从 rules.yaml 加载规则"""
-    with open('rules.yaml', 'r', encoding='utf-8') as f:
+    import os
+    rules_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'rules.yaml')
+    with open(rules_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
 RULES = load_rules()
@@ -118,7 +120,10 @@ class UpdateManager:
         if not force_update and (datetime.now() - last_check_time < update_interval):
             return
 
-        print("[*] 正在检查更新...")
+        from rich.console import Console
+        from rich.panel import Panel
+        console = Console()
+        
         try:
             remote_url = DEFAULT_CONFIG['remote_rules_url']
             response = requests.get(remote_url, timeout=DEFAULT_CONFIG['timeout'])
@@ -131,9 +136,9 @@ class UpdateManager:
             rules_updated = False
             if force_update or remote_version > local_version:
                 if force_update:
-                    print("[*] 强制更新规则...")
+                    console.print(Panel("🔄 [bold yellow]强制更新规则...[/bold yellow]", border_style="yellow"))
                 else:
-                    print(f"[*] 发现新版本规则 (v{remote_version})，正在合并规则...")
+                    console.print(Panel(f"🆕 [bold green]发现新版本规则 (v{remote_version})，正在合并规则...[/bold green]", border_style="green"))
 
                 # --- 合并逻辑 ---
                 # 以远程规则为基础进行合并
@@ -151,27 +156,31 @@ class UpdateManager:
                 # 更新最后检查时间戳
                 merged_rules['last_check_timestamp'] = UpdateManager.get_current_timestamp()
 
-                with open('rules.yaml', 'w', encoding='utf-8') as f:
+                import os
+                rules_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'rules.yaml')
+                with open(rules_path, 'w', encoding='utf-8') as f:
                     yaml.dump(merged_rules, f, allow_unicode=True, sort_keys=False)
                 
-                print("[+] 规则文件更新并合并成功。")
+                console.print("✅ [bold green]规则文件更新并合并成功。[/bold green]")
                 rules_updated = True
 
             else:
-                print("[*] 本地规则已是最新版本。")
+                console.print("ℹ️ [bold cyan]本地规则已是最新版本。[/bold cyan]")
 
             # 如果规则没有更新，仅更新检查时间戳
             if not rules_updated:
                 local_rules['last_check_timestamp'] = UpdateManager.get_current_timestamp()
-                with open('rules.yaml', 'w', encoding='utf-8') as f:
+                import os
+                rules_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'rules.yaml')
+                with open(rules_path, 'w', encoding='utf-8') as f:
                     yaml.dump(local_rules, f, allow_unicode=True, sort_keys=False)
 
         except requests.RequestException as e:
-            print(f"[!] 检查更新失败: {e}")
+            console.print(f"❌ [bold red]检查更新失败:[/bold red] {e}")
         except yaml.YAMLError as e:
-            print(f"[!] 解析远程或本地规则文件失败: {e}")
+            console.print(f"❌ [bold red]解析远程或本地规则文件失败:[/bold red] {e}")
         except Exception as e:
-            print(f"[!] 更新过程中发生未知错误: {e}")
+            console.print(f"❌ [bold red]更新过程中发生未知错误:[/bold red] {e}")
 
 class ProxyManager:
     """代理管理工具类 (Proxy management utility class)"""
