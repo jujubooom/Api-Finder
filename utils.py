@@ -6,8 +6,18 @@
 """
 
 import re
+import yaml
+import requests
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from config import DEFAULT_CONFIG
+
+def load_rules():
+    """从 rules.yaml 加载规则"""
+    with open('rules.yaml', 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+RULES = load_rules()
 
 class URLProcessor:
     """URL处理工具类 (URL processing utility class)"""
@@ -63,29 +73,9 @@ class URLExtractor:
             list: 提取到的URL列表 (List of extracted URLs)
         """
         filter_key = DEFAULT_CONFIG["filter_extensions"]
-        pattern_raw = r"""
-          (?:"|')                               # Start newline delimiter
-          (
-            ((?:[a-zA-Z]{1,10}://|//)           # Match a scheme [a-Z]*1-10 or //
-            [^"'/]{1,}\.                        # Match a domainname (any character + dot)
-            [a-zA-Z]{2,}[^"']{0,})              # The domainextension and/or path
-            |
-            ((?:/|\.\./|\./)                    # Start with /,../,./
-            [^"'><,;| *()(%%$^/\\\[\]]          # Next character can't be...
-            [^"'><,;|()]{1,})                   # Rest of the characters can't be
-            |
-            ([a-zA-Z0-9_\-/]{1,}/               # Relative endpoint with /
-            [a-zA-Z0-9_\-/]{1,}                 # Resource name
-            \.(?:[a-zA-Z]{1,4}|action)          # Rest + extension (length 1-4 or action)
-            (?:[\?|/][^"|']{0,}|))              # ? mark with parameters
-            |
-            ([a-zA-Z0-9_\-]{1,}                 # filename
-            \.(?:php|asp|aspx|jsp|json|
-                 action|html|js|txt|xml)             # . + extension
-            (?:\?[^"|']{0,}|))                  # ? mark with parameters
-          )
-          (?:"|')                               # End newline delimiter
-        """
+        pattern_raw = RULES.get('url_extractor_pattern', '')
+        ignored_domains = RULES.get('ignored_domains', [])
+
         pattern = re.compile(pattern_raw, re.VERBOSE)
         result = re.finditer(pattern, str(js_content))
         urls = []
@@ -94,12 +84,94 @@ class URLExtractor:
             return urls
             
         for match in result:
-            if any(sub in match.group() for sub in filter_key):
+            url = match.group().strip('"').strip("'")
+            if any(sub in url for sub in filter_key):
                 continue
-            else:
-                urls.append(match.group().strip('"').strip("'"))
+            if any(domain in url for domain in ignored_domains):
+                continue
+            
+            urls.append(url)
         
         return urls
+
+class UpdateManager:
+    """更新管理工具类"""
+
+    @staticmethod
+    def get_current_timestamp():
+        """获取当前时间的 YYYYMMDDHHMMSS 格式时间戳"""
+        return datetime.now().strftime('%Y%m%d%H%M%S')
+
+    @staticmethod
+    def check_for_updates(force_update=False):
+        """
+        检查并执行规则文件更新, 会合并用户自定义的列表规则。
+        
+        Args:
+            force_update (bool): 是否强制更新
+        """
+        local_rules = RULES
+        last_check_str = str(local_rules.get('last_check_timestamp', '20000101000000'))
+        last_check_time = datetime.strptime(last_check_str, '%Y%m%d%H%M%S')
+        update_interval = timedelta(days=DEFAULT_CONFIG['update_interval_days'])
+
+        if not force_update and (datetime.now() - last_check_time < update_interval):
+            return
+
+        print("[*] 正在检查更新...")
+        try:
+            remote_url = DEFAULT_CONFIG['remote_rules_url']
+            response = requests.get(remote_url, timeout=DEFAULT_CONFIG['timeout'])
+            response.raise_for_status()
+            
+            remote_rules = yaml.safe_load(response.text)
+            local_version = str(local_rules.get('version_timestamp', '0'))
+            remote_version = str(remote_rules.get('version_timestamp', '0'))
+            
+            rules_updated = False
+            if force_update or remote_version > local_version:
+                if force_update:
+                    print("[*] 强制更新规则...")
+                else:
+                    print(f"[*] 发现新版本规则 (v{remote_version})，正在合并规则...")
+
+                # --- 合并逻辑 ---
+                # 以远程规则为基础进行合并
+                merged_rules = remote_rules.copy()
+
+                # 合并所有列表类型的值
+                for key, local_value in local_rules.items():
+                    if isinstance(local_value, list):
+                        remote_value = merged_rules.get(key, [])
+                        if isinstance(remote_value, list):
+                            # 合并本地和远程列表并去重
+                            merged_list = sorted(list(set(local_value + remote_value)))
+                            merged_rules[key] = merged_list
+                
+                # 更新最后检查时间戳
+                merged_rules['last_check_timestamp'] = UpdateManager.get_current_timestamp()
+
+                with open('rules.yaml', 'w', encoding='utf-8') as f:
+                    yaml.dump(merged_rules, f, allow_unicode=True, sort_keys=False)
+                
+                print("[+] 规则文件更新并合并成功。")
+                rules_updated = True
+
+            else:
+                print("[*] 本地规则已是最新版本。")
+
+            # 如果规则没有更新，仅更新检查时间戳
+            if not rules_updated:
+                local_rules['last_check_timestamp'] = UpdateManager.get_current_timestamp()
+                with open('rules.yaml', 'w', encoding='utf-8') as f:
+                    yaml.dump(local_rules, f, allow_unicode=True, sort_keys=False)
+
+        except requests.RequestException as e:
+            print(f"[!] 检查更新失败: {e}")
+        except yaml.YAMLError as e:
+            print(f"[!] 解析远程或本地规则文件失败: {e}")
+        except Exception as e:
+            print(f"[!] 更新过程中发生未知错误: {e}")
 
 class ProxyManager:
     """代理管理工具类 (Proxy management utility class)"""

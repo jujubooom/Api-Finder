@@ -26,6 +26,10 @@ DEFAULT_CONFIG = {
     # 过滤相关 (Filter related)
     "filter_extensions": [".png", ".jpg", ".css", ".webp", ".apk", ".exe", ".dmg", ".ico", ".gif", ".svg"],
     
+    # 更新相关 (Update related)
+    "remote_rules_url": "https://raw.githubusercontent.com/jujubooom/Api-Finder/main/rules.yaml",
+    "update_interval_days": 3,
+    
     # 输出格式 (Output formats)
     "supported_formats": [".txt", ".json", ".csv"],
     
