@@ -16,6 +16,7 @@ import os
 from datetime import datetime
 from ua_manager import UaManager
 from utils import URLProcessor, URLExtractor
+import threading
 
 parser = argparse.ArgumentParser(description="Api-Finder v0.3")
 parser.add_argument("-u", "--url", help="目标网站URL", required=True)
@@ -208,70 +209,96 @@ def do_proxys():
 	
 	return proxies_global
 
-	
+# 创建线程安全的结果存储结构
+class ResultStore:
+	def __init__(self):
+		self.results = {"GET": {}, "POST": {}}
+		self.lock = threading.Lock()
+
+	def update(self, method, success, response_text, error=None):
+		with self.lock:
+			self.results[method] = {
+				"success": success,
+				"response": response_text,
+				"error": error
+			}
 
 
-
-def do_request(url):
-	header = {"User-Agent": Uam.getUa()}
-	output.print_verbose(f"正在尝试请求: {url}")
-	output.stats["total_urls"] += 1
-
+# 请求执行函数
+def make_request(method, url, cookies, timeout, store):
+	#请求前的配置
 	proxies = do_proxys()
 	if proxies and isinstance(proxies, list):
 		proxies = {
 			"socks5": proxies[random.randint(0,len(proxies)-1)],
 		}
+	header = {"User-Agent": Uam.getUa()}
+
+	try:
+		if method == "GET":
+			if proxies:
+				res = requests.get(url, headers=header, cookies=cookies,
+								   timeout=timeout, proxies=proxies)
+			else:
+				res = requests.get(url, headers=header, cookies=cookies,
+								   timeout=timeout)
+		else:  # POST
+			if proxies:
+				res = requests.post(url, headers=header, cookies=cookies,
+								   timeout=timeout, proxies=proxies)
+			else:
+				res = requests.post(url, headers=header, cookies=cookies,
+								   timeout=timeout)
+
+		res.raise_for_status()
+		response_text = res.text.replace(" ", "").replace("\n", "")
+		store.update(method, True, response_text)
+
+	except requests.exceptions.RequestException as e:
+		store.update(method, False, None, str(e))
+	except Exception as e:
+		store.update(method, False, None, str(e))
 
 
-	# GET
-	try:
-		if proxies:
-			get_res = requests.get(url, headers=header, cookies=arg.cookie, timeout=arg.timeout, proxies=proxies)
-			# print(proxies)
+def do_request(url):
+	result_store = ResultStore()
+
+	# 创建并启动线程
+	get_thread = threading.Thread(
+		target=make_request,
+		args=("GET", url, arg.cookie, arg.timeout, result_store)
+	)
+
+	post_thread = threading.Thread(
+		target=make_request,
+		args=("POST", url, arg.cookie, arg.timeout, result_store)
+	)
+
+	# 启动线程
+	get_thread.start()
+	post_thread.start()
+
+	# 等待两个线程完成
+	get_thread.join()
+	post_thread.join()
+
+	# 统一输出结果
+	for method in ["GET", "POST"]:
+		result = result_store.results[method]
+		if result["success"]:
+			if method == "GET" and output.silent_mode:
+				print(url)
+			elif not output.silent_mode:
+				output.print_success(f"{method}请求成功")
+				if output.verbose_mode:
+					res_len = len(result["response"])
+					output.print_verbose(f"响应长度: {res_len} 字符")
+					output.print_verbose(f"响应预览: {result['response'][:200]}...")
+
+			output.stats["successful_requests"] += 1
 		else:
-			get_res = requests.get(url, headers=header, cookies=arg.cookie, timeout=arg.timeout)
-		get_res.raise_for_status()
-		response_text = get_res.text.replace(" ", "").replace("\n", "")
-		
-		if output.silent_mode:
-			print(url)
-		else:
-			output.print_success("GET请求成功")
-			if output.verbose_mode:
-				output.print_verbose(f"响应长度: {len(response_text)} 字符")
-				output.print_verbose(f"响应预览: {response_text[:200]}...")
-		
-		output.stats["successful_requests"] += 1
-		
-	except requests.exceptions.RequestException as e:
-		output.print_error(f"GET请求失败: {str(e)}")
-		output.stats["failed_requests"] += 1
-	except Exception as e:
-		output.print_error(f"GET请求异常: {str(e)}")
-		output.stats["failed_requests"] += 1
-	
-	# POST请求
-	try:
-		post_res = requests.post(url, headers=header, cookies=arg.cookie, timeout=arg.timeout)
-		post_res.raise_for_status()
-		response_text = post_res.text.replace(" ", "").replace("\n", "")
-		
-		if not output.silent_mode:
-			output.print_success("POST请求成功")
-			if output.verbose_mode:
-				output.print_verbose(f"响应长度: {len(response_text)} 字符")
-				output.print_verbose(f"响应预览: {response_text[:200]}...")
-		
-		output.stats["successful_requests"] += 1
-		
-	except requests.exceptions.RequestException as e:
-		output.print_error(f"POST请求失败: {str(e)}")
-		output.stats["failed_requests"] += 1
-	except Exception as e:
-		output.print_error(f"POST请求异常: {str(e)}")
-		output.stats["failed_requests"] += 1
-	
+			output.print_error(f"{method}请求失败: {result['error']}")
+			output.stats["failed_requests"] += 1
 	# 请求间隔
 	time.sleep(arg.delay)
 
@@ -356,8 +383,8 @@ def find_by_url(url):
 		output.print_verbose(f"发现 {len(temp_urls)} 个URL")
 		for temp_url in temp_urls:
 			allurls[script] = temp_urls
-	
-	result = []
+	result_store = ResultStore()
+
 	for i in allurls:
 		for j in allurls[i]:
 			output.print_url(j, i)
@@ -368,8 +395,7 @@ def find_by_url(url):
 				do_request(j)
 			else:
 				do_request(temp2.scheme+"://"+temp2.netloc+j)
-	
-	return result
+
 
 
 # 设置一个主函数，方便后续添加新的功能
