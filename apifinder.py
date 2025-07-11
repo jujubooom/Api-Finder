@@ -18,6 +18,13 @@ from ua_manager import UaManager
 from utils import URLProcessor, URLExtractor
 from i18n import i18n
 import threading
+import pyfiglet
+from rich.console import Console
+from rich.text import Text
+from rich.panel import Panel
+from rich.table import Table
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.align import Align
 
 parser = argparse.ArgumentParser(description="Api-Finder v0.3")
 parser.add_argument("-u", "--url", help=i18n.get('arg_url_help'), required=True)
@@ -32,14 +39,59 @@ parser.add_argument("-r", "--random", action="store_true", help=i18n.get('arg_ra
 parser.add_argument("-a", "--app", help=i18n.get('arg_app_help'), default='common')
 arg = parser.parse_args()
 
+# 初始化Rich Console (Initialize Rich Console)
+console = Console()
+
 # 初始化UA管理器 (Initialize UA Manager)
 Uam = UaManager(arg.app, arg.random)
 
-# 输出管理器类 (Output Manager Class)
+# 使用Rich重构的Logo显示
+def show_logo():
+	"""使用Rich和pyfiglet显示精美logo"""
+	try:
+		# 生成ASCII art
+		logo_text = pyfiglet.figlet_format("Api-Finder", font="slant")
+		
+		# 创建带颜色的logo文本
+		logo = Text(logo_text, style="cyan bold")
+		
+		# 创建项目信息文本
+		info_text = Text()
+		info_text.append("API Endpoint Scanner v0.3\n", style="green bold")
+		info_text.append("Github: github.com/jujubooom/Api-Finder", style="blue")
+		
+		# 创建面板
+		logo_panel = Panel(
+			Align.center(logo),
+			title="[yellow bold]🚀 API-Finder 🚀[/yellow bold]",
+			border_style="cyan",
+			padding=(1, 2)
+		)
+		
+		info_panel = Panel(
+			Align.center(info_text),
+			border_style="green",
+			padding=(0, 2)
+		)
+		
+		# 显示logo和信息
+		console.print(logo_panel)
+		console.print(info_panel)
+		
+	except Exception as e:
+		# 急救措施 - 使用简单的Rich显示
+		console.print(Panel(
+			"[cyan bold]Api-Finder v0.3[/cyan bold]\n"
+			"[blue]Github: github.com/jujubooom/Api-Finder[/blue]",
+			title="🚀 API-Finder 🚀",
+			border_style="cyan"
+		))
+
+
+# Rich赋能的输出管理器类
 class OutputManager:
 	"""
-	OutputManager类是用来管理输出的，包括打印信息、保存结果
-	(OutputManager class is used to manage output, including printing information and saving results)
+	使用Rich库重构的OutputManager类，提供更美观的终端输出
 	
 	silent_mode: 静默模式，只输出发现的API端点 (Silent mode, only output discovered API endpoints)
 	verbose_mode: 详细输出模式 (Verbose output mode)
@@ -51,6 +103,7 @@ class OutputManager:
 		self.silent_mode = silent_mode
 		self.verbose_mode = verbose_mode
 		self.output_file = output_file
+		self.console = console  # 使用全局的Rich console
 		self.results = []
 		self.stats = {
 			"total_urls": 0,
@@ -59,36 +112,22 @@ class OutputManager:
 			"api_endpoints": 0
 		}
 	
-	def color(self, c, text):
-		if self.silent_mode:
-			return ""
-		if c=="red":
-			return "\033[0;31;40m"+text+"\033[0m"
-		if c=="green":
-			return "\033[0;32;40m"+text+"\033[0m"
-		if c=="yellow":
-			return "\033[0;33;40m"+text+"\033[0m"
-		if c=="blue":
-			return "\033[0;34;40m"+text+"\033[0m"
-		if c=="cyan":
-			return "\033[0;36;40m"+text+"\033[0m"
-	
 	def print_info(self, text):
 		if not self.silent_mode:
-			print(text)
+			self.console.print(text)
 	
 	def print_verbose(self, text):
 		if self.verbose_mode and not self.silent_mode:
-			print(self.color("cyan", f"[DEBUG] {text}"))
+			self.console.print(f"[cyan][DEBUG][/cyan] {text}")
 	
 	def print_url(self, url, source=""):
 		if self.silent_mode:
-			print(url)
+			print(url)  # 静默模式仍用普通print
 		else:
-			output_text = f"[+]{url}"
 			if source:
-				output_text += f" (发现于: {source})"
-			print(self.color("green", output_text))
+				self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue] [dim](discovered from: {source})[/dim]")
+			else:
+				self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue]")
 		
 		# 保存结果 (Save results)
 		self.results.append({
@@ -100,38 +139,56 @@ class OutputManager:
 	
 	def print_error(self, text):
 		if not self.silent_mode:
-			print(self.color("red", f"[-] {text}"))
+			self.console.print(f"[red bold]✗[/red bold] {text}")
 	
 	def print_warning(self, text):
 		if not self.silent_mode:
-			print(self.color("yellow", f"[!] {text}"))
+			self.console.print(f"[yellow bold]⚠[/yellow bold] {text}")
 	
 	def print_success(self, text):
 		if not self.silent_mode:
-			print(self.color("green", f"[+] {text}"))
+			self.console.print(f"[green bold]✓[/green bold] {text}")
 
 	# 输出使用的代理模式 (Output proxy mode used)
 	def print_proxy_mode(self, proxies):
 		if not self.silent_mode:
-			print(self.color("blue", i18n.get('proxy_mode')))
 			if proxies:
+				proxy_table = Table(title="🌐 Proxy Configuration", border_style="blue")
+				proxy_table.add_column("Type", style="cyan")
+				proxy_table.add_column("Address", style="green")
+				
 				if isinstance(proxies, list):
 					for proxy in proxies:
-						print(self.color("blue", f" - {proxy}"))
+						proxy_table.add_row("SOCKS5", proxy)
 				elif isinstance(proxies, dict):
 					for protocol, proxy in proxies.items():
-						print(self.color("blue", f" - {protocol}: {proxy}"))
+						proxy_table.add_row(protocol.upper(), proxy)
+				
+				self.console.print(proxy_table)
+			else:
+				self.console.print("[yellow]💻 Direct connection (no proxy)[/yellow]")
 
-	
 	def print_stats(self):
 		if not self.silent_mode:
-			print("\n" + "="*50)
-			print(self.color("blue", i18n.get('stats_title')))
-			print(f"{i18n.get('stats_total_urls')}: {self.stats['total_urls']}")
-			print(f"{i18n.get('stats_successful_requests')}: {self.stats['successful_requests']}")
-			print(f"{i18n.get('stats_failed_requests')}: {self.stats['failed_requests']}")
-			print(f"{i18n.get('stats_api_endpoints')}: {self.stats['api_endpoints']}")
-			print("="*50)
+			# 创建统计表格
+			stats_table = Table(title="📊 Scan Statistics", border_style="cyan")
+			stats_table.add_column("Item", style="yellow bold")
+			stats_table.add_column("Value", style="green bold", justify="right")
+			
+			stats_table.add_row("🎯 Total URLs", str(self.stats['total_urls']))
+			stats_table.add_row("✅ Successful Requests", str(self.stats['successful_requests']))
+			stats_table.add_row("❌ Failed Requests", str(self.stats['failed_requests']))
+			stats_table.add_row("🔍 API Endpoints Found", str(self.stats['api_endpoints']))
+			
+			# 计算成功率
+			total_requests = self.stats['successful_requests'] + self.stats['failed_requests']
+			if total_requests > 0:
+				success_rate = (self.stats['successful_requests'] / total_requests) * 100
+				stats_table.add_row("📈 Success Rate", f"{success_rate:.1f}%")
+			
+			self.console.print("\n")
+			self.console.print(stats_table)
+			self.console.print("\n")
 	
 	def save_results(self):
 		if not self.output_file:
@@ -170,10 +227,10 @@ class OutputManager:
 						writer.writerow([result['url'], result['source'], result['timestamp']])
 			
 			if not self.silent_mode:
-				print(self.color("green", f"[+] {i18n.get('results_saved')} {self.output_file}"))
+				self.console.print(f"[green bold]💾 Results saved to:[/green bold] [blue]{self.output_file}[/blue]")
 				
 		except Exception as e:
-			self.print_error(f"{i18n.get('save_failed')} {str(e)}")
+			self.print_error(f"Save failed: {str(e)}")
 
 # 初始化输出管理器 (Initialize output manager)
 output = OutputManager(arg.silent, arg.verbose, arg.output)
@@ -295,8 +352,8 @@ def do_request(url):
 				output.print_success(f"{method} request successful")
 				if output.verbose_mode:
 					res_len = len(result["response"])
-					output.print_verbose(f"Response length: {res_len} characters")
-					output.print_verbose(f"Response preview: {result['response'][:200]}...")
+					output.print_verbose(f"📏 Response length: {res_len} characters")
+					output.print_verbose(f"👀 Response preview: {result['response'][:200]}...")
 
 			output.stats["successful_requests"] += 1
 		else:
@@ -332,7 +389,7 @@ def Extract_html(URL):
 		raw = requests.get(URL, headers=header, timeout=arg.timeout, cookies=arg.cookie)
 		raw.raise_for_status()
 		content = raw.content.decode("utf-8", "ignore")
-		output.print_verbose(f"Successfully retrieved HTML content: {URL}")
+		output.print_verbose(f"✅ Successfully retrieved HTML content: {URL}")
 		return content
 	except requests.exceptions.RequestException as e:
 		output.print_error(f"Failed to get HTML {URL}: {str(e)}")
@@ -344,9 +401,9 @@ def Extract_html(URL):
 
 def find_by_url(url):
 	try:
-		output.print_info(f"Starting scan target: {url}")
+		output.print_info(f"🎯 [bold blue]Starting scan target:[/bold blue] [green]{url}[/green]")
 	except:
-		output.print_info("Please specify a valid URL, e.g.: https://www.baidu.com")
+		output.print_info("❌ Please specify a valid URL, e.g.: https://www.baidu.com")
 		return None
 	
 	html_raw = Extract_html(url)
@@ -354,10 +411,10 @@ def find_by_url(url):
 		output.print_error(f"Cannot access {url}")
 		return None
 	
-	output.print_verbose("Starting to parse HTML content...")
+	output.print_verbose("🔍 Starting to parse HTML content...")
 	html = BeautifulSoup(html_raw, "html.parser")
 	html_scripts = html.findAll("script")
-	output.print_verbose(f"Found {len(html_scripts)} script tags")
+	output.print_verbose(f"📄 Found {len(html_scripts)} script tags")
 	
 	script_array = {}
 	script_temp = ""
@@ -378,12 +435,12 @@ def find_by_url(url):
 	
 	allurls = {}
 	for script in script_array:
-		output.print_verbose(f"Analyzing script: {script}")
+		output.print_verbose(f"🔎 Analyzing script: {script}")
 		temp_urls = URLExtractor.extract_urls(script_array[script])
 		if len(temp_urls) == 0: 
-			output.print_verbose("No URLs found")
+			output.print_verbose("🔍 No URLs found")
 			continue
-		output.print_verbose(f"Found {len(temp_urls)} URLs")
+		output.print_verbose(f"✅ Found {len(temp_urls)} URLs")
 		for temp_url in temp_urls:
 			allurls[script] = temp_urls
 	result_store = ResultStore()
@@ -401,29 +458,26 @@ def find_by_url(url):
 
 
 
-# 设置一个主函数，方便后续添加新的功能 (Set up a main function for future feature additions)
+# 设置一个主函数，方便后续添加新的功能
 def main():
 	try:
-		output.print_info("="*50)
-		# 这里添加一个版本号 (Add version number here)
-		output.print_info("Api-Finder v0.3")
-		# Github仓库 : https://github.com/jujubooom/Api-Finder
-		output.print_info("Github: https://github.com/jujubooom/Api-Finder")
-		output.print_info("="*50)
-
-		# 显示代理模式 (Display proxy mode)
+		# 除了静默模式，其他情况下显示项目logo
+		if not arg.silent:
+			show_logo()
+		
+		# 显示代理模式
 		output.print_proxy_mode(do_proxys())
 
 		results = find_by_url(arg.url)
-		# 显示统计信息 (Display statistics)
+		# 显示统计信息
 		output.print_stats()
 		
-		# 保存结果 (Save results)
+		# 保存结果
 		output.save_results()
 
-	# 处理中途退出情况，防止输出一堆报错 (Handle interruption to prevent error output)
+	# 处理中途退出情况，防止输出一堆报错
 	except KeyboardInterrupt:
-		output.print_warning("User interrupted scan")
+		output.print_warning("🛑 User interrupted scan")
 		output.print_stats()
 		output.save_results()
 	except Exception as e:
