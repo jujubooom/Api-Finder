@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-工具类
-包含Api-Finder中使用的通用功能
+工具类 (Utility Classes)
+包含Api-Finder中使用的通用功能 (Contains common functionality used in Api-Finder)
 """
 
 import re
@@ -10,19 +10,19 @@ from urllib.parse import urlparse
 from config import DEFAULT_CONFIG
 
 class URLProcessor:
-    """URL处理工具类"""
+    """URL处理工具类 (URL processing utility class)"""
     
     @staticmethod
     def process_url(base_url, relative_url):
         """
-        处理相对URL，转换为绝对URL
+        处理相对URL，转换为绝对URL (Process relative URL, convert to absolute URL)
         
         Args:
-            base_url (str): 基础URL
-            relative_url (str): 相对URL
+            base_url (str): 基础URL (Base URL)
+            relative_url (str): 相对URL (Relative URL)
             
         Returns:
-            str: 绝对URL
+            str: 绝对URL (Absolute URL)
         """
         black_url = ["javascript:"]
         url_raw = urlparse(base_url)
@@ -49,18 +49,18 @@ class URLProcessor:
         return result
 
 class URLExtractor:
-    """URL提取工具类"""
+    """URL提取工具类 (URL extraction utility class)"""
     
     @staticmethod
     def extract_urls(js_content):
         """
-        从JavaScript内容中提取URL
+        从JavaScript内容中提取URL (Extract URLs from JavaScript content)
         
         Args:
-            js_content (str): JavaScript内容
+            js_content (str): JavaScript内容 (JavaScript content)
             
         Returns:
-            list: 提取到的URL列表
+            list: 提取到的URL列表 (List of extracted URLs)
         """
         filter_key = DEFAULT_CONFIG["filter_extensions"]
         pattern_raw = r"""
@@ -102,18 +102,18 @@ class URLExtractor:
         return urls
 
 class ProxyManager:
-    """代理管理工具类"""
+    """代理管理工具类 (Proxy management utility class)"""
     
     @staticmethod
     def format_proxy(proxy_url):
         """
-        格式化代理URL
+        格式化代理URL (Format proxy URL)
         
         Args:
-            proxy_url (str): 代理URL
+            proxy_url (str): 代理URL (Proxy URL)
             
         Returns:
-            dict: 格式化后的代理配置
+            dict: 格式化后的代理配置 (Formatted proxy configuration)
         """
         if proxy_url.startswith('socks5://'):
             return {

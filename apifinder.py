@@ -16,33 +16,36 @@ import os
 from datetime import datetime
 from ua_manager import UaManager
 from utils import URLProcessor, URLExtractor
+from i18n import i18n
 import threading
 
 parser = argparse.ArgumentParser(description="Api-Finder v0.3")
-parser.add_argument("-u", "--url", help="目标网站URL", required=True)
-parser.add_argument("-c", "--cookie", help="网站Cookie")
-parser.add_argument("-p", "--proxy", help="代理地址，若输入为0自动获取代理池并使用，支持socks5和http")
-parser.add_argument("-s", "--silent", action="store_true", help="静默模式，只输出发现的API端点")
-parser.add_argument("-o", "--output", help="输出文件路径 (目前支持 .txt, .json, .csv 格式, 默认不输出)")
-parser.add_argument("-t", "--timeout", type=int, default=10, help="请求超时时间 (默认: 10秒)")
-parser.add_argument("-d", "--delay", type=float, default=0.5, help="请求间隔时间 (默认: 0.5秒)")
-parser.add_argument("-v", "--verbose", action="store_true", help="详细输出模式")
-parser.add_argument("-r", "--random", action="store_true", help="随机UA")
-parser.add_argument("-a", "--app", help="设备UA，默认为电脑浏览器UA，weixin-微信UA，phone-手机UA",default='common')
+parser.add_argument("-u", "--url", help=i18n.get('arg_url_help'), required=True)
+parser.add_argument("-c", "--cookie", help=i18n.get('arg_cookie_help'))
+parser.add_argument("-p", "--proxy", help=i18n.get('arg_proxy_help'))
+parser.add_argument("-s", "--silent", action="store_true", help=i18n.get('arg_silent_help'))
+parser.add_argument("-o", "--output", help=i18n.get('arg_output_help'))
+parser.add_argument("-t", "--timeout", type=int, default=10, help=i18n.get('arg_timeout_help'))
+parser.add_argument("-d", "--delay", type=float, default=0.5, help=i18n.get('arg_delay_help'))
+parser.add_argument("-v", "--verbose", action="store_true", help=i18n.get('arg_verbose_help'))
+parser.add_argument("-r", "--random", action="store_true", help=i18n.get('arg_random_help'))
+parser.add_argument("-a", "--app", help=i18n.get('arg_app_help'), default='common')
 arg = parser.parse_args()
 
-# 初始化UA管理器
+# 初始化UA管理器 (Initialize UA Manager)
 Uam = UaManager(arg.app, arg.random)
 
-# 我这里把之前的print_silent函数改成了OutputManager类，后续好添加新的功能
+# 输出管理器类 (Output Manager Class)
 class OutputManager:
 	"""
 	OutputManager类是用来管理输出的，包括打印信息、保存结果
-	silent_mode: 静默模式，只输出发现的API端点
-	verbose_mode: 详细输出模式
-	output_file: 输出文件路径
-	results: 结果列表
-	stats: 统计信息
+	(OutputManager class is used to manage output, including printing information and saving results)
+	
+	silent_mode: 静默模式，只输出发现的API端点 (Silent mode, only output discovered API endpoints)
+	verbose_mode: 详细输出模式 (Verbose output mode)
+	output_file: 输出文件路径 (Output file path)
+	results: 结果列表 (Results list)
+	stats: 统计信息 (Statistics)
 	"""
 	def __init__(self, silent_mode, verbose_mode=False, output_file=None):
 		self.silent_mode = silent_mode
@@ -87,7 +90,7 @@ class OutputManager:
 				output_text += f" (发现于: {source})"
 			print(self.color("green", output_text))
 		
-		# 保存结果
+		# 保存结果 (Save results)
 		self.results.append({
 			"url": url,
 			"source": source,
@@ -107,10 +110,10 @@ class OutputManager:
 		if not self.silent_mode:
 			print(self.color("green", f"[+] {text}"))
 
-	# 输出使用的代理模式
+	# 输出使用的代理模式 (Output proxy mode used)
 	def print_proxy_mode(self, proxies):
 		if not self.silent_mode:
-			print(self.color("blue", "使用的代理模式:"))
+			print(self.color("blue", i18n.get('proxy_mode')))
 			if proxies:
 				if isinstance(proxies, list):
 					for proxy in proxies:
@@ -123,11 +126,11 @@ class OutputManager:
 	def print_stats(self):
 		if not self.silent_mode:
 			print("\n" + "="*50)
-			print(self.color("blue", "扫描统计信息:"))
-			print(f"总URL数: {self.stats['total_urls']}")
-			print(f"成功请求: {self.stats['successful_requests']}")
-			print(f"失败请求: {self.stats['failed_requests']}")
-			print(f"发现API端点: {self.stats['api_endpoints']}")
+			print(self.color("blue", i18n.get('stats_title')))
+			print(f"{i18n.get('stats_total_urls')}: {self.stats['total_urls']}")
+			print(f"{i18n.get('stats_successful_requests')}: {self.stats['successful_requests']}")
+			print(f"{i18n.get('stats_failed_requests')}: {self.stats['failed_requests']}")
+			print(f"{i18n.get('stats_api_endpoints')}: {self.stats['api_endpoints']}")
 			print("="*50)
 	
 	def save_results(self):
@@ -150,10 +153,10 @@ class OutputManager:
 			
 			elif file_ext == '.txt':
 				with open(self.output_file, 'w', encoding='utf-8') as f:
-					f.write(f"API端点扫描结果\n")
-					f.write(f"目标URL: {arg.url}\n")
-					f.write(f"扫描时间: {datetime.now().isoformat()}\n")
-					f.write(f"发现端点数: {self.stats['api_endpoints']}\n")
+					f.write(f"{i18n.get('output_header')}\n")
+					f.write(f"{i18n.get('output_target')}: {arg.url}\n")
+					f.write(f"{i18n.get('output_scan_time')}: {datetime.now().isoformat()}\n")
+					f.write(f"{i18n.get('output_endpoints_found')}: {self.stats['api_endpoints']}\n")
 					f.write("-" * 50 + "\n")
 					for result in self.results:
 						f.write(f"{result['url']}\n")
@@ -167,12 +170,12 @@ class OutputManager:
 						writer.writerow([result['url'], result['source'], result['timestamp']])
 			
 			if not self.silent_mode:
-				print(self.color("green", f"[+] 结果已保存到: {self.output_file}"))
+				print(self.color("green", f"[+] {i18n.get('results_saved')} {self.output_file}"))
 				
 		except Exception as e:
-			self.print_error(f"保存结果失败: {str(e)}")
+			self.print_error(f"{i18n.get('save_failed')} {str(e)}")
 
-# 初始化输出管理器
+# 初始化输出管理器 (Initialize output manager)
 output = OutputManager(arg.silent, arg.verbose, arg.output)
 proxies_global = None
 
@@ -183,14 +186,14 @@ def do_proxys():
 		return proxies_global
 	
 	if arg.proxy == "0":
-		# 自动获取代理列表
+		# 自动获取代理列表 (Auto fetch proxy list)
 		header = {"User-Agent": Uam.getUa()}
 		proxy_response = requests.get("https://proxy.scdn.io/api/get_proxy.php?protocol=socks5&count=5", headers=header).text
 		proxy_data = json.loads(proxy_response)
 		if proxy_data.get("code") == 200 and "data" in proxy_data and "proxies" in proxy_data["data"]:
 			proxies_global = proxy_data["data"]["proxies"]
 		else:
-			output.print_error("获取代理列表失败")
+			output.print_error(i18n.get('proxy_fetch_failed'))
 			proxies_global = []
 
 	elif arg.proxy:
@@ -209,7 +212,7 @@ def do_proxys():
 	
 	return proxies_global
 
-# 创建线程安全的结果存储结构
+# 创建线程安全的结果存储结构 (Create thread-safe result storage structure)
 class ResultStore:
 	def __init__(self):
 		self.results = {"GET": {}, "POST": {}}
@@ -224,9 +227,9 @@ class ResultStore:
 			}
 
 
-# 请求执行函数
+# 请求执行函数 (Request execution function)
 def make_request(method, url, cookies, timeout, store):
-	#请求前的配置
+	# 请求前的配置 (Request configuration)
 	proxies = do_proxys()
 	if proxies and isinstance(proxies, list):
 		proxies = {
@@ -282,22 +285,22 @@ def do_request(url):
 	get_thread.join()
 	post_thread.join()
 
-	# 统一输出结果
+	# 统一输出结果 (Unified output results)
 	for method in ["GET", "POST"]:
 		result = result_store.results[method]
 		if result["success"]:
 			if method == "GET" and output.silent_mode:
 				print(url)
 			elif not output.silent_mode:
-				output.print_success(f"{method}请求成功")
+				output.print_success(f"{method} request successful")
 				if output.verbose_mode:
 					res_len = len(result["response"])
-					output.print_verbose(f"响应长度: {res_len} 字符")
-					output.print_verbose(f"响应预览: {result['response'][:200]}...")
+					output.print_verbose(f"Response length: {res_len} characters")
+					output.print_verbose(f"Response preview: {result['response'][:200]}...")
 
 			output.stats["successful_requests"] += 1
 		else:
-			output.print_error(f"{method}请求失败: {result['error']}")
+			output.print_error(f"{method} request failed: {result['error']}")
 			output.stats["failed_requests"] += 1
 	# 请求间隔
 	time.sleep(arg.delay)
@@ -315,46 +318,46 @@ def find_last(string,str):
 # Handling relative URLs
 # 删除原有的 process_url 和 extract_URL 函数定义
 
-# 获取HTML内容
+# 获取HTML内容 (Extract HTML content)
 def Extract_html(URL):
 	"""
-	URL: 目标URL
-	header: 请求头
-	raw: 请求返回的内容
-	content: 解析后的HTML内容
-	return: 返回HTML内容
+	URL: 目标URL (Target URL)
+	header: 请求头 (Request headers)
+	raw: 请求返回的内容 (Raw response content)
+	content: 解析后的HTML内容 (Parsed HTML content)
+	return: 返回HTML内容 (Return HTML content)
 	"""
 	header = {"User-Agent": Uam.getUa()}
 	try:
 		raw = requests.get(URL, headers=header, timeout=arg.timeout, cookies=arg.cookie)
 		raw.raise_for_status()
 		content = raw.content.decode("utf-8", "ignore")
-		output.print_verbose(f"成功获取HTML内容: {URL}")
+		output.print_verbose(f"Successfully retrieved HTML content: {URL}")
 		return content
 	except requests.exceptions.RequestException as e:
-		output.print_error(f"获取HTML失败 {URL}: {str(e)}")
+		output.print_error(f"Failed to get HTML {URL}: {str(e)}")
 		return None
 	except Exception as e:
-		output.print_error(f"获取HTML异常 {URL}: {str(e)}")
+		output.print_error(f"HTML extraction exception {URL}: {str(e)}")
 		return None
 
 
 def find_by_url(url):
 	try:
-		output.print_info(f"开始扫描目标: {url}")
+		output.print_info(f"Starting scan target: {url}")
 	except:
-		output.print_info("请指定一个有效的URL，例如: https://www.baidu.com")
+		output.print_info("Please specify a valid URL, e.g.: https://www.baidu.com")
 		return None
 	
 	html_raw = Extract_html(url)
 	if html_raw == None: 
-		output.print_error(f"无法访问 {url}")
+		output.print_error(f"Cannot access {url}")
 		return None
 	
-	output.print_verbose("开始解析HTML内容...")
+	output.print_verbose("Starting to parse HTML content...")
 	html = BeautifulSoup(html_raw, "html.parser")
 	html_scripts = html.findAll("script")
-	output.print_verbose(f"发现 {len(html_scripts)} 个script标签")
+	output.print_verbose(f"Found {len(html_scripts)} script tags")
 	
 	script_array = {}
 	script_temp = ""
@@ -369,18 +372,18 @@ def find_by_url(url):
 			if script_content:
 				script_array[purl] = script_content
 			else:
-				output.print_warning(f"无法获取外部脚本: {purl}")
+				output.print_warning(f"Cannot get external script: {purl}")
 	
 	script_array[url] = script_temp
 	
 	allurls = {}
 	for script in script_array:
-		output.print_verbose(f"分析脚本: {script}")
+		output.print_verbose(f"Analyzing script: {script}")
 		temp_urls = URLExtractor.extract_urls(script_array[script])
 		if len(temp_urls) == 0: 
-			output.print_verbose("未发现URL")
+			output.print_verbose("No URLs found")
 			continue
-		output.print_verbose(f"发现 {len(temp_urls)} 个URL")
+		output.print_verbose(f"Found {len(temp_urls)} URLs")
 		for temp_url in temp_urls:
 			allurls[script] = temp_urls
 	result_store = ResultStore()
@@ -398,33 +401,33 @@ def find_by_url(url):
 
 
 
-# 设置一个主函数，方便后续添加新的功能
+# 设置一个主函数，方便后续添加新的功能 (Set up a main function for future feature additions)
 def main():
 	try:
 		output.print_info("="*50)
-		# 这里添加一个版本号
+		# 这里添加一个版本号 (Add version number here)
 		output.print_info("Api-Finder v0.3")
 		# Github仓库 : https://github.com/jujubooom/Api-Finder
 		output.print_info("Github: https://github.com/jujubooom/Api-Finder")
 		output.print_info("="*50)
 
-		# 显示代理模式
+		# 显示代理模式 (Display proxy mode)
 		output.print_proxy_mode(do_proxys())
 
 		results = find_by_url(arg.url)
-		# 显示统计信息
+		# 显示统计信息 (Display statistics)
 		output.print_stats()
 		
-		# 保存结果
+		# 保存结果 (Save results)
 		output.save_results()
 
-	# 处理中途退出情况，防止输出一堆报错	
+	# 处理中途退出情况，防止输出一堆报错 (Handle interruption to prevent error output)
 	except KeyboardInterrupt:
-		output.print_warning("用户中断扫描")
+		output.print_warning("User interrupted scan")
 		output.print_stats()
 		output.save_results()
 	except Exception as e:
-		output.print_error(f"程序执行异常: {str(e)}")
+		output.print_error(f"Program execution exception: {str(e)}")
 		sys.exit(1)
 
 if __name__ == "__main__":
