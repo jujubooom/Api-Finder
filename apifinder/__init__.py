@@ -5,5 +5,6 @@ Api-Finder - API端点扫描工具
 """
 
 __version__ = "0.5"
-__author__ = "jujubooom,bx,orxiain"
+__author__ = "jujubooom,bx33661,Rxiain"
+__github_url__ = "https://github.com/jujubooom/Api-Finder"
 __description__ = "Find API endpoints from frontend files" 

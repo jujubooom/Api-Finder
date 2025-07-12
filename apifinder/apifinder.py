@@ -5,7 +5,7 @@
 """
 
 import random
-import requests, re
+import requests
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import argparse
@@ -23,8 +23,17 @@ from rich.console import Console
 from rich.text import Text
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich.align import Align
+from rich.live import Live
+from rich.status import Status
+from rich.json import JSON
+from rich.traceback import install
+from rich.columns import Columns
+from rich.rule import Rule
+
+# 安装Rich的异常处理
+install()
 
 parser = argparse.ArgumentParser(description="Api-Finder v0.3")
 parser.add_argument("-u", "--url", help=i18n.get('arg_url_help'), required=True)
@@ -37,7 +46,7 @@ parser.add_argument("-d", "--delay", type=float, default=0.5, help=i18n.get('arg
 parser.add_argument("-v", "--verbose", action="store_true", help=i18n.get('arg_verbose_help'))
 parser.add_argument("-r", "--random", action="store_true", help=i18n.get('arg_random_help'))
 parser.add_argument("-a", "--app", help=i18n.get('arg_app_help'), default='common')
-parser.add_argument("-U", "--update", action="store_true", help="强制更新规则文件 (Force update of the rules file)")
+parser.add_argument("-U", "--update", action="store_true", help=i18n.get('arg_update_help'))
 arg = parser.parse_args()
 
 # 初始化Rich Console (Initialize Rich Console)
@@ -58,8 +67,9 @@ def show_logo():
 		
 		# 创建项目信息文本
 		info_text = Text()
-		info_text.append("API Endpoint Scanner v0.3\n", style="green bold")
-		info_text.append("Github: github.com/jujubooom/Api-Finder", style="blue")
+		info_text.append("API Endpoint Scanner v0.5", style="green bold")
+		info_text.append("     Github: github.com/jujubooom/Api-Finder\n", style="blue")
+		info_text.append("Developed by jujubooom,bx,orxiain", style="green bold")
 		
 		# 创建面板
 		logo_panel = Panel(
@@ -78,6 +88,7 @@ def show_logo():
 		# 显示logo和信息
 		console.print(logo_panel)
 		console.print(info_panel)
+		console.print(Rule(style="dim"))
 		
 	except Exception as e:
 		# 急救措施 - 使用简单的Rich显示
@@ -110,8 +121,13 @@ class OutputManager:
 			"total_urls": 0,
 			"successful_requests": 0,
 			"failed_requests": 0,
-			"api_endpoints": 0
+			"api_endpoints": 0,
+			"start_time": datetime.now()
 		}
+		self.results_table = Table(title="🔍 Discovered API Endpoints", border_style="green")
+		self.results_table.add_column("📍 URL", style="cyan", no_wrap=False)
+		self.results_table.add_column("📄 Source", style="yellow", max_width=30)
+		self.results_table.add_column("⏰ Time", style="dim", max_width=10)
 	
 	def print_info(self, text):
 		if not self.silent_mode:
@@ -119,14 +135,20 @@ class OutputManager:
 	
 	def print_verbose(self, text):
 		if self.verbose_mode and not self.silent_mode:
-			self.console.print(f"[cyan][DEBUG][/cyan] {text}")
+			self.console.print(f"[dim][DEBUG][/dim] {text}")
 	
 	def print_url(self, url, source=""):
 		if self.silent_mode:
-			print(url)  # 静默模式仍用普通print
+			# 静默模式使用Rich的print而不是普通print
+			self.console.print(url, highlight=False)
 		else:
+			# 添加到结果表格
+			source_display = source.split('/')[-1] if source else "unknown"
+			time_display = datetime.now().strftime("%H:%M:%S")
+			self.results_table.add_row(url, source_display, time_display)
+			
 			if source:
-				self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue] [dim](discovered from: {source})[/dim]")
+				self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue] [dim](from: {source_display})[/dim]")
 			else:
 				self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue]")
 		
@@ -154,9 +176,10 @@ class OutputManager:
 		"""打印成功请求的页面标题"""
 		if not self.silent_mode:
 			text = Text()
-			text.append("📄 Title for ", style="green")
+			text.append("📄 ", style="green")
+			text.append(f"{title}", style="yellow")
+			text.append(" → ", style="dim")
 			text.append(f"{url}", style="cyan dim")
-			text.append(f": {title}", style="yellow")
 			self.console.print(text)
 
 	# 输出使用的代理模式 (Output proxy mode used)
@@ -177,9 +200,14 @@ class OutputManager:
 				self.console.print(proxy_table)
 			else:
 				self.console.print("[yellow]💻 Direct connection (no proxy)[/yellow]")
+			self.console.print(Rule(style="dim"))
 
 	def print_stats(self):
 		if not self.silent_mode:
+			# 计算扫描时间
+			scan_duration = datetime.now() - self.stats["start_time"]
+			duration_str = f"{scan_duration.total_seconds():.1f}s"
+			
 			# 创建统计表格
 			stats_table = Table(title="📊 Scan Statistics", border_style="cyan")
 			stats_table.add_column("Item", style="yellow bold")
@@ -189,6 +217,7 @@ class OutputManager:
 			stats_table.add_row("✅ Successful Requests", str(self.stats['successful_requests']))
 			stats_table.add_row("❌ Failed Requests", str(self.stats['failed_requests']))
 			stats_table.add_row("🔍 API Endpoints Found", str(self.stats['api_endpoints']))
+			stats_table.add_row("⏱️ Scan Duration", duration_str)
 			
 			# 计算成功率
 			total_requests = self.stats['successful_requests'] + self.stats['failed_requests']
@@ -196,9 +225,13 @@ class OutputManager:
 				success_rate = (self.stats['successful_requests'] / total_requests) * 100
 				stats_table.add_row("📈 Success Rate", f"{success_rate:.1f}%")
 			
-			self.console.print("\n")
+			self.console.print(Rule(style="dim"))
 			self.console.print(stats_table)
-			self.console.print("\n")
+			
+			# 如果找到了API端点，显示结果表格
+			if self.stats['api_endpoints'] > 0 and not self.silent_mode:
+				self.console.print(Rule(style="dim"))
+				self.console.print(self.results_table)
 	
 	def save_results(self):
 		if not self.output_file:
@@ -213,7 +246,10 @@ class OutputManager:
 						"scan_info": {
 							"target_url": arg.url,
 							"scan_time": datetime.now().isoformat(),
-							"stats": self.stats
+							"stats": {
+								**self.stats,
+								"start_time": self.stats["start_time"].isoformat()
+							}
 						},
 						"results": self.results
 					}, f, ensure_ascii=False, indent=2)
@@ -237,10 +273,25 @@ class OutputManager:
 						writer.writerow([result['url'], result['source'], result['timestamp']])
 			
 			if not self.silent_mode:
-				self.console.print(f"[green bold]💾 Results saved to:[/green bold] [blue]{self.output_file}[/blue]")
+				self.console.print(f"\n[green bold]💾 Results saved to:[/green bold] [blue]{self.output_file}[/blue]")
 				
 		except Exception as e:
 			self.print_error(f"Save failed: {str(e)}")
+	
+	def create_progress(self, total_tasks=None):
+		"""创建进度条"""
+		if self.silent_mode:
+			return None
+		
+		return Progress(
+			SpinnerColumn(),
+			TextColumn("[progress.description]{task.description}"),
+			BarColumn(),
+			TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+			TimeElapsedColumn(),
+			console=self.console,
+			expand=True
+		)
 
 # 初始化输出管理器 (Initialize output manager)
 output = OutputManager(arg.silent, arg.verbose, arg.output)
@@ -374,7 +425,7 @@ def do_request(url):
 					output.print_verbose(f"Could not parse title from {url}: {e}")
 
 			if method == "GET" and output.silent_mode:
-				print(url)
+				output.console.print(url, highlight=False)
 			elif not output.silent_mode:
 				output.print_success(f"{method} request successful for {url}")
 				if output.verbose_mode:
@@ -391,18 +442,6 @@ def do_request(url):
 	time.sleep(arg.delay)
 	return response_text_to_return
 
-def find_last(string,str):
-	positions = []
-	last_position=-1
-	while True:
-		position = string.find(str,last_position+1)
-		if position == -1:break
-		last_position = position
-		positions.append(position)
-	return positions
-
-# Handling relative URLs
-# 删除原有的 process_url 和 extract_URL 函数定义
 
 # 获取HTML内容 (Extract HTML content)
 def Extract_html(URL):
@@ -435,7 +474,13 @@ def find_by_url(url):
 		output.print_info("❌ Please specify a valid URL, e.g.: https://www.baidu.com")
 		return None
 	
-	html_raw = Extract_html(url)
+	# 使用状态显示
+	if not output.silent_mode:
+		with Status("[bold green]🔍 Fetching target page...", console=output.console):
+			html_raw = Extract_html(url)
+	else:
+		html_raw = Extract_html(url)
+	
 	if html_raw == None: 
 		output.print_error(f"Cannot access {url}")
 		return None
@@ -448,42 +493,122 @@ def find_by_url(url):
 	script_array = {}
 	script_temp = ""
 	
-	for html_script in html_scripts:
-		script_src = html_script.get("src")
-		if script_src == None:
-			script_temp += html_script.get_text() + "\n"
-		else:
-			purl = URLProcessor.process_url(url, script_src)
-			script_content = Extract_html(purl)
-			if script_content:
-				script_array[purl] = script_content
+	# 创建进度条来显示脚本处理进度
+	progress = output.create_progress()
+	if progress:
+		with progress:
+			script_task = progress.add_task("[cyan]📄 Processing scripts...", total=len(html_scripts))
+			
+			for html_script in html_scripts:
+				script_src = html_script.get("src")
+				if script_src == None:
+					script_temp += html_script.get_text() + "\n"
+				else:
+					purl = URLProcessor.process_url(url, script_src)
+					progress.update(script_task, description=f"[cyan]📄 Fetching: {purl.split('/')[-1]}")
+					script_content = Extract_html(purl)
+					if script_content:
+						script_array[purl] = script_content
+					else:
+						output.print_warning(f"Cannot get external script: {purl}")
+				
+				progress.advance(script_task)
+	else:
+		# 静默模式或无进度条时的处理
+		for html_script in html_scripts:
+			script_src = html_script.get("src")
+			if script_src == None:
+				script_temp += html_script.get_text() + "\n"
 			else:
-				output.print_warning(f"Cannot get external script: {purl}")
+				purl = URLProcessor.process_url(url, script_src)
+				script_content = Extract_html(purl)
+				if script_content:
+					script_array[purl] = script_content
+				else:
+					output.print_warning(f"Cannot get external script: {purl}")
 	
 	script_array[url] = script_temp
 	
+	# 分析脚本以提取URL
 	allurls = {}
-	for script in script_array:
-		output.print_verbose(f"🔎 Analyzing script: {script}")
-		temp_urls = URLExtractor.extract_urls(script_array[script])
-		if len(temp_urls) == 0: 
-			output.print_verbose("🔍 No URLs found")
-			continue
-		output.print_verbose(f"✅ Found {len(temp_urls)} URLs")
-		for temp_url in temp_urls:
-			allurls[script] = temp_urls
-	result_store = ResultStore()
-
-	for i in allurls:
-		for j in allurls[i]:
-			output.print_url(j, i)
-			temp1 = urlparse(j)
-			temp2 = urlparse(url)
+	total_scripts = len(script_array)
+	
+	if not output.silent_mode:
+		output.print_info(f"🔎 [bold yellow]Analyzing {total_scripts} scripts for API endpoints...[/bold yellow]")
+	
+	progress = output.create_progress()
+	if progress:
+		with progress:
+			analyze_task = progress.add_task("[green]🔍 Analyzing scripts...", total=total_scripts)
 			
-			if temp1.netloc != urlparse("1").netloc:
-				do_request(j)
+			for script in script_array:
+				script_name = script.split('/')[-1] if '/' in script else script
+				progress.update(analyze_task, description=f"[green]🔍 Analyzing: {script_name}")
+				
+				output.print_verbose(f"🔎 Analyzing script: {script}")
+				temp_urls = URLExtractor.extract_urls(script_array[script])
+				
+				if len(temp_urls) == 0: 
+					output.print_verbose("🔍 No URLs found")
+				else:
+					output.print_verbose(f"✅ Found {len(temp_urls)} URLs")
+					allurls[script] = temp_urls
+				
+				progress.advance(analyze_task)
+	else:
+		# 静默模式处理
+		for script in script_array:
+			output.print_verbose(f"🔎 Analyzing script: {script}")
+			temp_urls = URLExtractor.extract_urls(script_array[script])
+			if len(temp_urls) == 0: 
+				output.print_verbose("🔍 No URLs found")
 			else:
-				do_request(temp2.scheme+"://"+temp2.netloc+j)
+				output.print_verbose(f"✅ Found {len(temp_urls)} URLs")
+				allurls[script] = temp_urls
+	
+	# 处理发现的URL
+	total_urls = sum(len(urls) for urls in allurls.values())
+	if total_urls > 0:
+		output.print_info(f"🎯 [bold green]Found {total_urls} potential API endpoints. Testing them...[/bold green]")
+		
+		progress = output.create_progress()
+		if progress:
+			with progress:
+				test_task = progress.add_task("[blue]🌐 Testing endpoints...", total=total_urls)
+				
+				for i in allurls:
+					for j in allurls[i]:
+						# 显示当前正在测试的URL
+						url_display = j[:50] + "..." if len(j) > 50 else j
+						progress.update(test_task, description=f"[blue]🌐 Testing: {url_display}")
+						
+						output.print_url(j, i)
+						temp1 = urlparse(j)
+						temp2 = urlparse(url)
+						
+						if temp1.netloc != urlparse("1").netloc:
+							do_request(j)
+						else:
+							do_request(temp2.scheme+"://"+temp2.netloc+j)
+						
+						progress.advance(test_task)
+		else:
+			# 静默模式处理
+			for i in allurls:
+				for j in allurls[i]:
+					output.print_url(j, i)
+					temp1 = urlparse(j)
+					temp2 = urlparse(url)
+					
+					if temp1.netloc != urlparse("1").netloc:
+						do_request(j)
+					else:
+						do_request(temp2.scheme+"://"+temp2.netloc+j)
+	else:
+		output.print_warning("⚠️ No API endpoints discovered in the scanned content")
+	
+	# 更新统计信息
+	output.stats["total_urls"] = total_urls
 
 
 
@@ -493,10 +618,12 @@ def main():
 	
 	# 首先处理更新检查
 	if arg.update:
-		UpdateManager.check_for_updates(force_update=True)
+		with Status("[bold blue]🔄 Checking for updates...", console=output.console):
+			UpdateManager.check_for_updates(force_update=True)
 		sys.exit(0)
 	else:
-		UpdateManager.check_for_updates(force_update=False)
+		with Status("[bold blue]🔄 Checking for updates...", console=output.console):
+			UpdateManager.check_for_updates(force_update=False)
 
 	if not arg.silent:
 		show_logo()
@@ -507,10 +634,22 @@ def main():
 		# 显示代理模式
 		output.print_proxy_mode(do_proxys())
 
+		# 开始扫描
+		output.print_info(f"🚀 [bold green]Starting API endpoint scan...[/bold green]")
 		results = find_by_url(url)
+		
+		if not output.silent_mode:
+			if output.stats["api_endpoints"] > 0:
+				output.print_info(f"🎉 [bold green]Scan completed! Found {output.stats['api_endpoints']} API endpoints.[/bold green]")
+			else:
+				output.print_info(f"✅ [bold yellow]Scan completed. No API endpoints found.[/bold yellow]")
 	
+	except KeyboardInterrupt:
+		output.print_warning("\n⚠️ Scan interrupted by user")
+		sys.exit(1)
 	except Exception as e:
 		output.print_error(f"Error: {str(e)}")
+		raise  # 让Rich的异常处理器处理
 	
 	finally:
 		output.print_stats()

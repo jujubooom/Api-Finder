@@ -4,8 +4,8 @@
 配置文件 (Configuration File)
 管理Api-Finder的默认设置和配置 (Manage Api-Finder default settings and configuration)
 """
-# 这里默认请求有类，但是没有设置 (Default request class, but not set)
-# 默认请求有类 (Default request class)
+
+# 默认配置 (Default configuration)
 DEFAULT_CONFIG = {
     # 请求相关 (Request related)
     "timeout": 10,
@@ -19,7 +19,7 @@ DEFAULT_CONFIG = {
     "default_app": "common",
     "random_ua": False,
     
-    # 代理相关 (Proxy related)
+    # 代理相关 (Proxy related),采用scdn.io的代理，免费的，而且速度很快
     "proxy_api_url": "https://proxy.scdn.io/api/get_proxy.php?protocol=socks5&count=5",
     "proxy_count": 5,
     
@@ -27,7 +27,7 @@ DEFAULT_CONFIG = {
     "filter_extensions": [".png", ".jpg", ".css", ".webp", ".apk", ".exe", ".dmg", ".ico", ".gif", ".svg"],
     
     # 更新相关 (Update related)
-    "remote_rules_url": "https://raw.githubusercontent.com/jujubooom/Api-Finder/main/rules.yaml",
+    "remote_rules_url": "https://raw.githubusercontent.com/jujubooom/Api-Finder/refs/heads/main/config/rules.yaml",
     "update_interval_days": 3,
     
     # 输出格式 (Output formats)
@@ -39,20 +39,4 @@ DEFAULT_CONFIG = {
     "github_url": "https://github.com/jujubooom/Api-Finder"
 }
 
-# 颜色配置 (Color configuration)
-COLORS = {
-    "red": "\033[0;31;40m",
-    "green": "\033[0;32;40m", 
-    "yellow": "\033[0;33;40m",
-    "blue": "\033[0;34;40m",
-    "cyan": "\033[0;36;40m",
-    "reset": "\033[0m"
-}
-
-# 统计信息 (Statistics template)
-STATS_TEMPLATE = {
-    "total_urls": 0,
-    "successful_requests": 0,
-    "failed_requests": 0,
-    "api_endpoints": 0
-} 
+# 配置文件结束 

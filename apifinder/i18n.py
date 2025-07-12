@@ -41,7 +41,9 @@ class I18nManager:
             'arg_verbose_help': 'Verbose output mode',
             'arg_random_help': 'Random User-Agent',
             'arg_app_help': 'Device User-Agent, default: common browser, weixin: WeChat, phone: mobile',
-            
+            'arg_update_help': 'Force update the rules file (Force update of the rules file)',
+
+
             # Output messages (输出消息)
             'scan_start': 'Starting API endpoint scan...',
             'scan_complete': 'Scan completed',
@@ -90,6 +92,7 @@ class I18nManager:
             str: 英文文本 (English text)
         """
         return self.messages.get(key, default or key)
+    
 
 # 全局国际化管理器实例 (Global i18n manager instance)
 i18n = I18nManager() 

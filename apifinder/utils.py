@@ -182,27 +182,4 @@ class UpdateManager:
         except Exception as e:
             console.print(f"❌ [bold red]更新过程中发生未知错误:[/bold red] {e}")
 
-class ProxyManager:
-    """代理管理工具类 (Proxy management utility class)"""
-    
-    @staticmethod
-    def format_proxy(proxy_url):
-        """
-        格式化代理URL (Format proxy URL)
         
-        Args:
-            proxy_url (str): 代理URL (Proxy URL)
-            
-        Returns:
-            dict: 格式化后的代理配置 (Formatted proxy configuration)
-        """
-        if proxy_url.startswith('socks5://'):
-            return {
-                "http": proxy_url,
-                "https": proxy_url
-            }
-        else:
-            return {
-                "http": proxy_url if proxy_url.startswith('http') else f'http://{proxy_url}',
-                "https": proxy_url if proxy_url.startswith('http') else f'http://{proxy_url}'
-            } 
