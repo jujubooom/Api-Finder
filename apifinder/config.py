@@ -31,7 +31,7 @@ DEFAULT_CONFIG = {
     "update_interval_days": 3,
     
     # 输出格式 (Output formats)
-    "supported_formats": [".txt", ".json", ".csv"],
+    "supported_formats": [".txt", ".json", ".csv", ".html", ".xml", ".xlsx", ".md"],
     
     # 版本信息 (Version information)
     "version": "0.3.1",

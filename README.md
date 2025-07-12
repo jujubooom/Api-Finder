@@ -30,6 +30,9 @@ Api-Finder/
 
 ```bash
 pip install -r requirements.txt
+
+# 可选：如果需要Excel输出格式，请安装
+pip install openpyxl
 ```
 
 ### 基本使用 (Basic Usage)
@@ -69,6 +72,14 @@ python main.py -u https://example.com -t 30 -d 1.0
 
 # 强制更新规则文件
 python main.py -u https://example.com -U
+
+# 多种输出格式
+python main.py -u https://example.com -o results.json    # JSON格式
+python main.py -u https://example.com -o results.html    # HTML报告
+python main.py -u https://example.com -o results.csv     # CSV表格
+python main.py -u https://example.com -o results.xml     # XML格式
+python main.py -u https://example.com -o results.xlsx    # Excel表格
+python main.py -u https://example.com -o results.md      # Markdown格式
 ```
 
 ## 项目重构说明 (Refactoring Notes)
@@ -85,7 +96,7 @@ python main.py -u https://example.com -U
 - 🔍 自动发现网站中的API端点
 - 🌐 支持多种代理模式（HTTP/SOCKS5）
 - 📱 多种User-Agent支持（桌面/移动/微信）
-- 📊 丰富的输出格式（TXT/JSON/CSV）
+- 📊 丰富的输出格式（TXT/JSON/CSV/HTML/XML/Excel/Markdown）
 - 🎨 美观的命令行界面
 - 🔄 自动规则更新机制
 - 🌍 英文界面支持

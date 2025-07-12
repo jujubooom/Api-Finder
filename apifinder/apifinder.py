@@ -17,6 +17,7 @@ from datetime import datetime
 from .ua_manager import UaManager
 from .utils import URLProcessor, URLExtractor, UpdateManager
 from .i18n import i18n
+from .output_manager import OutputManager, FileOutputManager
 import threading
 import pyfiglet
 from rich.console import Console
@@ -100,201 +101,10 @@ def show_logo():
 		))
 
 
-# Rich赋能的输出管理器类
-class OutputManager:
-	"""
-	使用Rich库重构的OutputManager类，提供更美观的终端输出
-	
-	silent_mode: 静默模式，只输出发现的API端点 (Silent mode, only output discovered API endpoints)
-	verbose_mode: 详细输出模式 (Verbose output mode)
-	output_file: 输出文件路径 (Output file path)
-	results: 结果列表 (Results list)
-	stats: 统计信息 (Statistics)
-	"""
-	def __init__(self, silent_mode, verbose_mode=False, output_file=None):
-		self.silent_mode = silent_mode
-		self.verbose_mode = verbose_mode
-		self.output_file = output_file
-		self.console = console  # 使用全局的Rich console
-		self.results = []
-		self.stats = {
-			"total_urls": 0,
-			"successful_requests": 0,
-			"failed_requests": 0,
-			"api_endpoints": 0,
-			"start_time": datetime.now()
-		}
-		self.results_table = Table(title="🔍 Discovered API Endpoints", border_style="green")
-		self.results_table.add_column("📍 URL", style="cyan", no_wrap=False)
-		self.results_table.add_column("📄 Source", style="yellow", max_width=30)
-		self.results_table.add_column("⏰ Time", style="dim", max_width=10)
-	
-	def print_info(self, text):
-		if not self.silent_mode:
-			self.console.print(text)
-	
-	def print_verbose(self, text):
-		if self.verbose_mode and not self.silent_mode:
-			self.console.print(f"[dim][DEBUG][/dim] {text}")
-	
-	def print_url(self, url, source=""):
-		if self.silent_mode:
-			# 静默模式使用Rich的print而不是普通print
-			self.console.print(url, highlight=False)
-		else:
-			# 添加到结果表格
-			source_display = source.split('/')[-1] if source else "unknown"
-			time_display = datetime.now().strftime("%H:%M:%S")
-			self.results_table.add_row(url, source_display, time_display)
-			
-			if source:
-				self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue] [dim](from: {source_display})[/dim]")
-			else:
-				self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue]")
-		
-		# 保存结果 (Save results)
-		self.results.append({
-			"url": url,
-			"source": source,
-			"timestamp": datetime.now().isoformat()
-		})
-		self.stats["api_endpoints"] += 1
-	
-	def print_error(self, text):
-		if not self.silent_mode:
-			self.console.print(f"[red bold]✗[/red bold] {text}")
-	
-	def print_warning(self, text):
-		if not self.silent_mode:
-			self.console.print(f"[yellow bold]⚠[/yellow bold] {text}")
-	
-	def print_success(self, text):
-		if not self.silent_mode:
-			self.console.print(f"[green bold]✓[/green bold] {text}")
-
-	def print_title(self, url, title):
-		"""打印成功请求的页面标题"""
-		if not self.silent_mode:
-			text = Text()
-			text.append("📄 ", style="green")
-			text.append(f"{title}", style="yellow")
-			text.append(" → ", style="dim")
-			text.append(f"{url}", style="cyan dim")
-			self.console.print(text)
-
-	# 输出使用的代理模式 (Output proxy mode used)
-	def print_proxy_mode(self, proxies):
-		if not self.silent_mode:
-			if proxies:
-				proxy_table = Table(title="🌐 Proxy Configuration", border_style="blue")
-				proxy_table.add_column("Type", style="cyan")
-				proxy_table.add_column("Address", style="green")
-				
-				if isinstance(proxies, list):
-					for proxy in proxies:
-						proxy_table.add_row("SOCKS5", proxy)
-				elif isinstance(proxies, dict):
-					for protocol, proxy in proxies.items():
-						proxy_table.add_row(protocol.upper(), proxy)
-				
-				self.console.print(proxy_table)
-			else:
-				self.console.print("[yellow]💻 Direct connection (no proxy)[/yellow]")
-			self.console.print(Rule(style="dim"))
-
-	def print_stats(self):
-		if not self.silent_mode:
-			# 计算扫描时间
-			scan_duration = datetime.now() - self.stats["start_time"]
-			duration_str = f"{scan_duration.total_seconds():.1f}s"
-			
-			# 创建统计表格
-			stats_table = Table(title="📊 Scan Statistics", border_style="cyan")
-			stats_table.add_column("Item", style="yellow bold")
-			stats_table.add_column("Value", style="green bold", justify="right")
-			
-			stats_table.add_row("🎯 Total URLs", str(self.stats['total_urls']))
-			stats_table.add_row("✅ Successful Requests", str(self.stats['successful_requests']))
-			stats_table.add_row("❌ Failed Requests", str(self.stats['failed_requests']))
-			stats_table.add_row("🔍 API Endpoints Found", str(self.stats['api_endpoints']))
-			stats_table.add_row("⏱️ Scan Duration", duration_str)
-			
-			# 计算成功率
-			total_requests = self.stats['successful_requests'] + self.stats['failed_requests']
-			if total_requests > 0:
-				success_rate = (self.stats['successful_requests'] / total_requests) * 100
-				stats_table.add_row("📈 Success Rate", f"{success_rate:.1f}%")
-			
-			self.console.print(Rule(style="dim"))
-			self.console.print(stats_table)
-			
-			# 如果找到了API端点，显示结果表格
-			if self.stats['api_endpoints'] > 0 and not self.silent_mode:
-				self.console.print(Rule(style="dim"))
-				self.console.print(self.results_table)
-	
-	def save_results(self):
-		if not self.output_file:
-			return
-		
-		try:
-			file_ext = os.path.splitext(self.output_file)[1].lower()
-			
-			if file_ext == '.json':
-				with open(self.output_file, 'w', encoding='utf-8') as f:
-					json.dump({
-						"scan_info": {
-							"target_url": arg.url,
-							"scan_time": datetime.now().isoformat(),
-							"stats": {
-								**self.stats,
-								"start_time": self.stats["start_time"].isoformat()
-							}
-						},
-						"results": self.results
-					}, f, ensure_ascii=False, indent=2)
-			
-			elif file_ext == '.txt':
-				with open(self.output_file, 'w', encoding='utf-8') as f:
-					f.write(f"{i18n.get('output_header')}\n")
-					f.write(f"{i18n.get('output_target')}: {arg.url}\n")
-					f.write(f"{i18n.get('output_scan_time')}: {datetime.now().isoformat()}\n")
-					f.write(f"{i18n.get('output_endpoints_found')}: {self.stats['api_endpoints']}\n")
-					f.write("-" * 50 + "\n")
-					for result in self.results:
-						f.write(f"{result['url']}\n")
-			
-			elif file_ext == '.csv':
-				import csv
-				with open(self.output_file, 'w', newline='', encoding='utf-8') as f:
-					writer = csv.writer(f)
-					writer.writerow(['URL', 'Source', 'Timestamp'])
-					for result in self.results:
-						writer.writerow([result['url'], result['source'], result['timestamp']])
-			
-			if not self.silent_mode:
-				self.console.print(f"\n[green bold]💾 Results saved to:[/green bold] [blue]{self.output_file}[/blue]")
-				
-		except Exception as e:
-			self.print_error(f"Save failed: {str(e)}")
-	
-	def create_progress(self, total_tasks=None):
-		"""创建进度条"""
-		if self.silent_mode:
-			return None
-		
-		return Progress(
-			SpinnerColumn(),
-			TextColumn("[progress.description]{task.description}"),
-			BarColumn(),
-			TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-			TimeElapsedColumn(),
-			console=self.console,
-			expand=True
-		)
 
 # 初始化输出管理器 (Initialize output manager)
 output = OutputManager(arg.silent, arg.verbose, arg.output)
+file_output = FileOutputManager(output)
 proxies_global = None
 
 def do_proxys():
@@ -358,18 +168,14 @@ def make_request(method, url, cookies, timeout, store):
 	try:
 		if method == "GET":
 			if proxies:
-				res = requests.get(url, headers=header, cookies=cookies,
-								   timeout=timeout, proxies=proxies)
+				res = requests.get(url, headers=header, cookies=cookies,timeout=timeout, proxies=proxies)
 			else:
-				res = requests.get(url, headers=header, cookies=cookies,
-								   timeout=timeout)
+				res = requests.get(url, headers=header, cookies=cookies, timeout=timeout)
 		else:  # POST
 			if proxies:
-				res = requests.post(url, headers=header, cookies=cookies,
-								   timeout=timeout, proxies=proxies)
+				res = requests.post(url, headers=header, cookies=cookies,timeout=timeout, proxies=proxies)
 			else:
-				res = requests.post(url, headers=header, cookies=cookies,
-								   timeout=timeout)
+				res = requests.post(url, headers=header, cookies=cookies,timeout=timeout)
 
 		res.raise_for_status()
 		response_text = res.text.replace(" ", "").replace("\n", "")
@@ -653,7 +459,7 @@ def main():
 	
 	finally:
 		output.print_stats()
-		output.save_results()
+		file_output.save_results(arg.url, arg)
 
 if __name__ == '__main__':
 	main()

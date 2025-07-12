@@ -31,7 +31,7 @@ python apifinder.py -u <目标网址>
 - `-c, --cookie`: 可选参数，用于认证的Cookie
 - `-p, --proxy`: 可选参数，代理地址，若输入为0自动获取代理池并使用，支持socks5和http
 - `-s, --silent`: 可选参数，静默模式，只输出发现的API端点
-- `-o, --output`: 可选参数，输出文件路径 (支持 .txt, .json, .csv 格式)
+- `-o, --output`: 可选参数，输出文件路径 (支持 .txt, .json, .csv, .html, .xml, .xlsx, .md 格式)
 - `-t, --timeout`: 可选参数，请求超时时间 (默认: 10秒)
 - `-d, --delay`: 可选参数，请求间隔时间 (默认: 0.5秒)
 - `-v, --verbose`: 可选参数，详细输出模式

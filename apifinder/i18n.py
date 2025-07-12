@@ -35,7 +35,7 @@ class I18nManager:
             'arg_cookie_help': 'Website Cookie for authentication',
             'arg_proxy_help': 'Proxy address, use "0" for auto proxy pool, supports socks5 and http',
             'arg_silent_help': 'Silent mode, only output discovered API endpoints',
-            'arg_output_help': 'Output file path (supports .txt, .json, .csv formats, default: no output)',
+            'arg_output_help': 'Output file path (supports .txt, .json, .csv, .html, .xml, .xlsx, .md formats, default: no output)',
             'arg_timeout_help': 'Request timeout (default: 10 seconds)',
             'arg_delay_help': 'Request interval (default: 0.5 seconds)',
             'arg_verbose_help': 'Verbose output mode',
@@ -94,5 +94,4 @@ class I18nManager:
         return self.messages.get(key, default or key)
     
 
-# 全局国际化管理器实例 (Global i18n manager instance)
 i18n = I18nManager() 
