@@ -218,8 +218,17 @@ def make_request(method, url, cookies, timeout, store):
 				)
 
 			res.raise_for_status()
+			
+			# 确保正确的编码处理
+			if res.encoding is None or res.encoding == 'ISO-8859-1':
+				res.encoding = 'utf-8'
+			
+			# 保留原始内容用于标题提取，只简化用于API搜索的内容
+			original_response_text = res.text
 			response_text = res.text.replace(" ", "").replace("\n", "")
-			store.update(method, True, response_text)
+			
+			# 存储原始响应用于标题提取
+			store.update(method, True, original_response_text)
 			return
 			
 		except requests.exceptions.SSLError as e:
@@ -322,7 +331,9 @@ def do_request(url):
 
 			output.stats["successful_requests"] += 1
 		else:
-			output.print_error(f"{method} request failed for {url}: {result['error']}")
+			# 只有GET请求失败时才输出错误信息，POST请求失败时不输出
+			if method == "GET":
+				output.print_error(f"{method} request failed for {url}: {result['error']}")
 			output.stats["failed_requests"] += 1
 	
 	# 请求间隔
@@ -470,6 +481,13 @@ def find_by_url(url):
 	
 	output.print_verbose("🔍 Starting to parse HTML content...")
 	html = BeautifulSoup(html_raw, "html.parser")
+	
+	# 首先从HTML标签中提取URL
+	output.print_verbose("📋 Extracting URLs from HTML attributes...")
+	html_urls = URLExtractor.extract_urls_from_html(html_raw)
+	output.print_verbose(f"📋 Found {len(html_urls)} URLs in HTML attributes")
+	
+	# 然后处理JavaScript
 	html_scripts = html.findAll("script")
 	output.print_verbose(f"📄 Found {len(html_scripts)} script tags")
 	
@@ -514,6 +532,11 @@ def find_by_url(url):
 	
 	# 分析脚本以提取URL
 	allurls = {}
+	
+	# 先添加HTML中提取的URLs
+	if html_urls:
+		allurls["HTML_attributes"] = html_urls
+	
 	total_scripts = len(script_array)
 	
 	if not output.silent_mode:

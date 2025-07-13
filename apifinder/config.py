@@ -32,9 +32,9 @@ DEFAULT_CONFIG = {
     
     # 输出格式 (Output formats)
     "supported_formats": [".txt", ".json", ".csv", ".html", ".xml", ".xlsx", ".md"],
-    
+        
     # 版本信息 (Version information)
-    "version": "0.3.1",
+    "version": "0.5.1",
     "description": "Api-Finder - Find API endpoints from frontend files",
     "github_url": "https://github.com/jujubooom/Api-Finder"
 }

@@ -64,6 +64,110 @@ class URLExtractor:
     """URL提取工具类 (URL extraction utility class)"""
     
     @staticmethod
+    def extract_urls_from_html(html_content):
+        """
+        从HTML内容中提取URL (Extract URLs from HTML content)
+        
+        Args:
+            html_content (str): HTML内容 (HTML content)
+            
+        Returns:
+            list: 提取到的URL列表 (List of extracted URLs)
+        """
+        from bs4 import BeautifulSoup
+        filter_key = DEFAULT_CONFIG["filter_extensions"]
+        ignored_domains = RULES.get('ignored_domains', [])
+        
+        urls = []
+        
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+            
+            # 定义要查找的HTML属性
+            url_attributes = [
+                ('a', 'href'),
+                ('link', 'href'),
+                ('img', 'src'),
+                ('script', 'src'),
+                ('iframe', 'src'),
+                ('form', 'action'),
+                ('area', 'href'),
+                ('source', 'src'),
+                ('track', 'src'),
+                ('audio', 'src'),
+                ('video', 'src'),
+                ('embed', 'src'),
+                ('object', 'data'),
+                ('frame', 'src'),
+                ('meta', 'content'),
+                ('base', 'href'),
+            ]
+            
+            # 提取所有可能的URL
+            for tag_name, attr_name in url_attributes:
+                tags = soup.find_all(tag_name)
+                for tag in tags:
+                    url = tag.get(attr_name)
+                    if url and isinstance(url, str):
+                        # 清理URL
+                        url = url.strip().strip('"').strip("'")
+                        
+                        # 过滤掉无效的URL
+                        if not url or url.startswith('#') or url.startswith('javascript:') or url.startswith('mailto:') or url.startswith('tel:'):
+                            continue
+                        
+                        # 过滤掉不需要的文件扩展名
+                        if any(ext in url.lower() for ext in filter_key):
+                            continue
+                            
+                        # 过滤掉被忽略的域名
+                        if any(domain in url.lower() for domain in ignored_domains):
+                            continue
+                        
+                        # 只保留相对路径或API相关的URL
+                        if (url.startswith('/') or 
+                            url.startswith('./') or 
+                            url.startswith('../') or
+                            'api' in url.lower() or
+                            'ajax' in url.lower() or
+                            'json' in url.lower() or
+                            'xml' in url.lower() or
+                            url.endswith('.php') or
+                            url.endswith('.jsp') or
+                            url.endswith('.asp') or
+                            url.endswith('.aspx') or
+                            url.endswith('.action') or
+                            url.endswith('.do') or
+                            url.endswith('.json') or
+                            url.endswith('.xml') or
+                            url.endswith('.txt') or
+                            url.endswith('.html') or
+                            url.endswith('.htm')):
+                            
+                            if url not in urls:
+                                urls.append(url)
+            
+            # 也查找data属性中的URL
+            all_tags = soup.find_all()
+            for tag in all_tags:
+                if tag.attrs:
+                    for attr, value in tag.attrs.items():
+                        if attr.startswith('data-') and isinstance(value, str):
+                            # 使用正则表达式查找URL模式
+                            import re
+                            url_pattern = r'["\']([^"\']+(?:\.php|\.jsp|\.asp|\.aspx|\.action|\.do|\.json|\.xml|/api/|/ajax/)[^"\']*)["\']'
+                            matches = re.findall(url_pattern, value)
+                            for match in matches:
+                                if match not in urls:
+                                    urls.append(match)
+            
+        except Exception as e:
+            # 如果HTML解析失败，返回空列表
+            pass
+            
+        return urls
+    
+    @staticmethod
     def extract_urls(js_content):
         """
         从JavaScript内容中提取URL (Extract URLs from JavaScript content)
