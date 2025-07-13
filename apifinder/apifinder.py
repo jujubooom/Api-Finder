@@ -6,6 +6,7 @@
 
 import random
 import requests
+from requests.adapters import HTTPAdapter
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import argparse
@@ -55,6 +56,8 @@ parser.add_argument("-v", "--verbose", action="store_true", help=i18n.get('arg_v
 parser.add_argument("-r", "--random", action="store_true", help=i18n.get('arg_random_help'))
 parser.add_argument("-a", "--app", help=i18n.get('arg_app_help'), default='common')
 parser.add_argument("-U", "--update", action="store_true", help=i18n.get('arg_update_help'))
+parser.add_argument("-D", "--depth", type=int, default=2, help=i18n.get('arg_depth_help'))
+
 
 arg = parser.parse_args()
 
@@ -163,6 +166,38 @@ class ResultStore:
 			}
 
 
+# 深度扫描
+class DeepScanManager:
+	def __init__(self, base_url, max_depth=2):
+		self.base_url = base_url
+		self.base_domain = urlparse(base_url).netloc
+		self.max_depth = max_depth
+		self.scanned_urls = set()  # 已扫描的URL集合
+		self.lock = threading.Lock()
+	
+	def is_same_domain(self, url):
+		try:
+			parsed_url = urlparse(url)
+			return parsed_url.netloc == self.base_domain
+		except:
+			return False
+	
+	def add_scanned_url(self, url):
+		with self.lock:
+			self.scanned_urls.add(url)
+	
+	def is_already_scanned(self, url):
+		with self.lock:
+			return url in self.scanned_urls
+	
+	def get_filtered_urls(self, urls):
+		filtered_urls = []
+		for url in urls:
+			if self.is_same_domain(url) and not self.is_already_scanned(url):
+				filtered_urls.append(url)
+		return filtered_urls
+
+
 # 请求执行函数 (Request execution function)
 def make_request(method, url, cookies, timeout, store):
 	# 请求前的配置 (Request configuration)
@@ -183,32 +218,26 @@ def make_request(method, url, cookies, timeout, store):
 		"Cache-Control": "max-age=0"
 	}
 	
-	# 设置重试次数
 	max_retries = 2
 	retry_delay = 0.5
 	
 	for attempt in range(max_retries):
 		try:
-			# 配置session以处理SSL和连接问题
 			session = requests.Session()
 			session.verify = False  # 禁用SSL验证
 			
-			# 设置适配器以处理重试
-			adapter = requests.adapters.HTTPAdapter(max_retries=1)
+			adapter = HTTPAdapter(max_retries=1)
 			session.mount('http://', adapter)
 			session.mount('https://', adapter)
-			
-			# 添加代理支持
 			if proxies:
 				session.proxies.update(proxies)
 			
-			# 发送请求
 			if method == "GET":
 				res = session.get(
 					url, 
 					headers=header, 
 					cookies=cookies, 
-					timeout=(5, timeout),  # 连接超时5秒，读取超时使用参数
+					timeout=(5, timeout),
 					allow_redirects=True
 				)
 			else:  # POST
@@ -216,21 +245,24 @@ def make_request(method, url, cookies, timeout, store):
 					url, 
 					headers=header, 
 					cookies=cookies, 
-					timeout=(5, timeout),  # 连接超时5秒，读取超时使用参数
+					timeout=(5, timeout),
 					allow_redirects=True
 				)
 
+			if res.status_code in [301, 302, 303, 307, 308]:
+				redirect_url = res.url
+				if redirect_url != url:
+					output.print_verbose(f"🔄 Redirect detected in {method} request: {url} -> {redirect_url}")
+					return make_request(method, redirect_url, cookies, timeout, store)
+
 			res.raise_for_status()
 			
-			# 确保正确的编码处理
 			if res.encoding is None or res.encoding == 'ISO-8859-1':
 				res.encoding = 'utf-8'
 			
-			# 保留原始内容用于标题提取，只简化用于API搜索的内容
 			original_response_text = res.text
 			response_text = res.text.replace(" ", "").replace("\n", "")
 			
-			# 存储原始响应用于标题提取
 			store.update(method, True, original_response_text)
 			return
 			
@@ -345,7 +377,7 @@ def do_request(url):
 
 
 # 获取HTML内容 (Extract HTML content)
-def Extract_html(URL):
+def Extract_html(URL, follow_redirects=True):
 	"""
 	URL: 目标URL (Target URL)
 	header: 请求头 (Request headers)
@@ -378,7 +410,7 @@ def Extract_html(URL):
 			session.verify = False  # 禁用SSL验证
 			
 			# 设置适配器以处理重试
-			adapter = requests.adapters.HTTPAdapter(max_retries=2)
+			adapter = HTTPAdapter(max_retries=2)
 			session.mount('http://', adapter)
 			session.mount('https://', adapter)
 			
@@ -393,9 +425,19 @@ def Extract_html(URL):
 				headers=header, 
 				timeout=(10, 30),  # 连接超时10秒，读取超时30秒
 				cookies=arg.cookie if arg.cookie else None,
-				allow_redirects=True,
+				allow_redirects=follow_redirects,  # 根据参数决定是否跟随重定向
 				stream=False
 			)
+			
+			# 检查重定向状态码
+			if follow_redirects and raw.status_code in [301, 302, 303, 307, 308]:
+				# 获取重定向后的URL
+				redirect_url = raw.url
+				if redirect_url != URL:
+					output.print_verbose(f"🔄 Redirect detected: {URL} -> {redirect_url}")
+					output.print_info(f"📡 [bold yellow]Following redirect:[/bold yellow] [green]{redirect_url}[/green]")
+					# 递归调用自身获取重定向后的内容
+					return Extract_html(redirect_url, follow_redirects=True)
 			
 			raw.raise_for_status()
 			
@@ -464,9 +506,24 @@ def Extract_html(URL):
 	return None
 
 
-def find_by_url(url):
+def find_by_url(url, depth=0, deep_scan_manager=None):
+
+	if deep_scan_manager is None:
+		deep_scan_manager = DeepScanManager(url, arg.depth)
+	
+	if depth > deep_scan_manager.max_depth:
+		return None
+	
+	if deep_scan_manager.is_already_scanned(url):
+		return None
+	
+	deep_scan_manager.add_scanned_url(url)
+	
 	try:
-		output.print_info(f"🎯 [bold blue]Starting scan target:[/bold blue] [green]{url}[/green]")
+		if depth == 0:
+			output.print_info(f"🎯 [bold blue]Starting scan target:[/bold blue] [green]{url}[/green]")
+		else:
+			output.print_info(f"🔍 [bold blue]Deep scan (depth {depth}):[/bold blue] [green]{url}[/green]")
 	except:
 		output.print_info("❌ Please specify a valid URL, e.g.: https://www.baidu.com")
 		return None
@@ -477,7 +534,7 @@ def find_by_url(url):
 			html_raw = Extract_html(url)
 	else:
 		html_raw = Extract_html(url)
-	
+		
 	if html_raw == None: 
 		output.print_error(f"Cannot access {url}")
 		return None
@@ -491,7 +548,7 @@ def find_by_url(url):
 	output.print_verbose(f"📋 Found {len(html_urls)} URLs in HTML attributes")
 	
 	# 然后处理JavaScript
-	html_scripts = html.findAll("script")
+	html_scripts = html.find_all("script")
 	output.print_verbose(f"📄 Found {len(html_scripts)} script tags")
 	
 	script_array = {}
@@ -504,32 +561,50 @@ def find_by_url(url):
 			script_task = progress.add_task("[cyan]📄 Processing scripts...", total=len(html_scripts))
 			
 			for html_script in html_scripts:
-				script_src = html_script.get("src")
-				if script_src == None:
-					script_temp += html_script.get_text() + "\n"
-				else:
-					purl = URLProcessor.process_url(url, script_src)
-					progress.update(script_task, description=f"[cyan]📄 Fetching: {purl.split('/')[-1]}")
-					script_content = Extract_html(purl)
-					if script_content:
-						script_array[purl] = script_content
+				try:
+					# 检查是否为Tag对象
+					if hasattr(html_script, 'get'):
+						script_src = html_script.get("src")
+						if script_src == None:
+							script_temp += html_script.get_text() + "\n"
+						else:
+							purl = URLProcessor.process_url(url, script_src)
+							progress.update(script_task, description=f"[cyan]📄 Fetching: {purl.split('/')[-1]}")
+							script_content = Extract_html(purl)
+							if script_content:
+								script_array[purl] = script_content
+							else:
+								output.print_warning(f"Cannot get external script: {purl}")
 					else:
-						output.print_warning(f"Cannot get external script: {purl}")
+						# 如果不是Tag对象，直接获取文本内容
+						script_temp += html_script.get_text() + "\n"
+				except AttributeError:
+					# 如果对象没有get方法，直接获取文本内容
+					script_temp += html_script.get_text() + "\n"
 				
 				progress.advance(script_task)
 	else:
 		# 静默模式或无进度条时的处理
 		for html_script in html_scripts:
-			script_src = html_script.get("src")
-			if script_src == None:
-				script_temp += html_script.get_text() + "\n"
-			else:
-				purl = URLProcessor.process_url(url, script_src)
-				script_content = Extract_html(purl)
-				if script_content:
-					script_array[purl] = script_content
+			try:
+				# 检查是否为Tag对象
+				if hasattr(html_script, 'get'):
+					script_src = html_script.get("src")
+					if script_src == None:
+						script_temp += html_script.get_text() + "\n"
+					else:
+						purl = URLProcessor.process_url(url, script_src)
+						script_content = Extract_html(purl)
+						if script_content:
+							script_array[purl] = script_content
+						else:
+							output.print_warning(f"Cannot get external script: {purl}")
 				else:
-					output.print_warning(f"Cannot get external script: {purl}")
+					# 如果不是Tag对象，直接获取文本内容
+					script_temp += html_script.get_text() + "\n"
+			except AttributeError:
+				# 如果对象没有get方法，直接获取文本内容
+				script_temp += html_script.get_text() + "\n"
 	
 	script_array[url] = script_temp
 	
@@ -575,7 +650,6 @@ def find_by_url(url):
 				output.print_verbose(f"✅ Found {len(temp_urls)} URLs")
 				allurls[script] = temp_urls
 
-
 	# 添加全局锁保证输出和统计的线程安全
 	print_lock = threading.Lock()
 	stats_lock = threading.Lock()
@@ -609,17 +683,11 @@ def find_by_url(url):
 
 			safe_print_url(target_url, i)
 			try:
-				# 如果需要线程安全的请求，可以在do_request内部加锁
-				# 或者确保do_request是线程安全的
+				# 注意线程安全
 				do_request(target_url)
 			except Exception as e:
 				with print_lock:
 					output.print_error(f"Error testing {target_url}: {str(e)}")
-
-			# 更新统计（如果需要）
-			with stats_lock:
-				# 这里可以添加自定义统计更新逻辑
-				pass
 
 		progress = output.create_progress()
 		if progress:
@@ -661,6 +729,35 @@ def find_by_url(url):
 
 	# 更新统计信息
 	output.stats["total_urls"] = total_urls
+	
+	# 深度扫描：如果还有深度，继续扫描发现的同域名URL
+	if depth < deep_scan_manager.max_depth:
+		all_discovered_urls = []
+		for source, urls in allurls.items():
+			all_discovered_urls.extend(urls)
+		
+		filtered_urls = deep_scan_manager.get_filtered_urls(all_discovered_urls)
+		
+		if filtered_urls:
+			output.print_info(f"🔍 [bold yellow]Found {len(filtered_urls)} URLs for deep scan (depth {depth + 1})...[/bold yellow]")
+			max_deep_scan_urls = 10
+			if len(filtered_urls) > max_deep_scan_urls:
+				output.print_warning(f"⚠️ Limiting deep scan to {max_deep_scan_urls} URLs (found {len(filtered_urls)})")
+				filtered_urls = filtered_urls[:max_deep_scan_urls]
+
+			for deep_url in filtered_urls:
+				try:
+
+					if not deep_url.startswith(('http://', 'https://')):
+						parsed_base = urlparse(url)
+						deep_url = f"{parsed_base.scheme}://{parsed_base.netloc}{deep_url}"
+					
+					output.print_verbose(f"🔍 Starting deep scan for: {deep_url}")
+					find_by_url(deep_url, depth + 1, deep_scan_manager)
+					
+				except Exception as e:
+					output.print_error(f"Error in deep scan for {deep_url}: {str(e)}")
+					continue
 
 
 
@@ -688,7 +785,7 @@ def main():
 
 		# 开始扫描
 		output.print_info(f"🚀 [bold green]Starting API endpoint scan...[/bold green]")
-		results = find_by_url(url)
+		find_by_url(url)
 		
 		if not output.silent_mode:
 			if output.stats["api_endpoints"] > 0:

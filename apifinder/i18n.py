@@ -43,6 +43,7 @@ class I18nManager:
             'arg_app_help': 'Device User-Agent, default: common browser, weixin: WeChat, phone: mobile',
             'arg_update_help': 'Force update the rules file (Force update of the rules file)',
             'arg_threads_help': 'Select the number of threads. The default is 10',
+            'arg_depth_help': 'Select the depth of the scan. The default is 1',
 
 
             # Output messages (输出消息)
