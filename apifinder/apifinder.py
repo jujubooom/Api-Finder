@@ -14,6 +14,8 @@ import sys
 import json
 import os
 from datetime import datetime
+from urllib3.exceptions import InsecureRequestWarning
+import urllib3
 from .ua_manager import UaManager
 from .utils import URLProcessor, URLExtractor, UpdateManager
 from .i18n import i18n
@@ -32,6 +34,9 @@ from rich.json import JSON
 from rich.traceback import install
 from rich.columns import Columns
 from rich.rule import Rule
+
+# 禁用SSL警告
+urllib3.disable_warnings(InsecureRequestWarning)
 
 # 安装Rich的异常处理
 install()
@@ -163,28 +168,104 @@ def make_request(method, url, cookies, timeout, store):
 		proxies = {
 			"socks5": proxies[random.randint(0,len(proxies)-1)],
 		}
-	header = {"User-Agent": Uam.getUa()}
-
-	try:
-		if method == "GET":
+	
+	# 更完整的请求头
+	header = {
+		"User-Agent": Uam.getUa(),
+		"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+		"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+		"Accept-Encoding": "gzip, deflate, br",
+		"Connection": "keep-alive",
+		"Upgrade-Insecure-Requests": "1",
+		"Cache-Control": "max-age=0"
+	}
+	
+	# 设置重试次数
+	max_retries = 2
+	retry_delay = 0.5
+	
+	for attempt in range(max_retries):
+		try:
+			# 配置session以处理SSL和连接问题
+			session = requests.Session()
+			session.verify = False  # 禁用SSL验证
+			
+			# 设置适配器以处理重试
+			adapter = requests.adapters.HTTPAdapter(max_retries=1)
+			session.mount('http://', adapter)
+			session.mount('https://', adapter)
+			
+			# 添加代理支持
 			if proxies:
-				res = requests.get(url, headers=header, cookies=cookies,timeout=timeout, proxies=proxies)
-			else:
-				res = requests.get(url, headers=header, cookies=cookies, timeout=timeout)
-		else:  # POST
-			if proxies:
-				res = requests.post(url, headers=header, cookies=cookies,timeout=timeout, proxies=proxies)
-			else:
-				res = requests.post(url, headers=header, cookies=cookies,timeout=timeout)
+				session.proxies.update(proxies)
+			
+			# 发送请求
+			if method == "GET":
+				res = session.get(
+					url, 
+					headers=header, 
+					cookies=cookies, 
+					timeout=(5, timeout),  # 连接超时5秒，读取超时使用参数
+					allow_redirects=True
+				)
+			else:  # POST
+				res = session.post(
+					url, 
+					headers=header, 
+					cookies=cookies, 
+					timeout=(5, timeout),  # 连接超时5秒，读取超时使用参数
+					allow_redirects=True
+				)
 
-		res.raise_for_status()
-		response_text = res.text.replace(" ", "").replace("\n", "")
-		store.update(method, True, response_text)
-
-	except requests.exceptions.RequestException as e:
-		store.update(method, False, None, str(e))
-	except Exception as e:
-		store.update(method, False, None, str(e))
+			res.raise_for_status()
+			response_text = res.text.replace(" ", "").replace("\n", "")
+			store.update(method, True, response_text)
+			return
+			
+		except requests.exceptions.SSLError as e:
+			if attempt < max_retries - 1:
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				store.update(method, False, None, f"SSL error: {str(e)}")
+				return
+				
+		except requests.exceptions.ConnectionError as e:
+			if attempt < max_retries - 1:
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				store.update(method, False, None, f"Connection error: {str(e)}")
+				return
+				
+		except requests.exceptions.Timeout as e:
+			if attempt < max_retries - 1:
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				store.update(method, False, None, f"Timeout: {str(e)}")
+				return
+				
+		except requests.exceptions.RequestException as e:
+			if attempt < max_retries - 1:
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				store.update(method, False, None, f"Request error: {str(e)}")
+				return
+				
+		except Exception as e:
+			if attempt < max_retries - 1:
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				store.update(method, False, None, f"Unexpected error: {str(e)}")
+				return
 
 
 def do_request(url):
@@ -258,19 +339,115 @@ def Extract_html(URL):
 	content: 解析后的HTML内容 (Parsed HTML content)
 	return: 返回HTML内容 (Return HTML content)
 	"""
-	header = {"User-Agent": Uam.getUa()}
-	try:
-		raw = requests.get(URL, headers=header, timeout=arg.timeout, cookies=arg.cookie)
-		raw.raise_for_status()
-		content = raw.content.decode("utf-8", "ignore")
-		output.print_verbose(f"✅ Successfully retrieved HTML content: {URL}")
-		return content
-	except requests.exceptions.RequestException as e:
-		output.print_error(f"Failed to get HTML {URL}: {str(e)}")
-		return None
-	except Exception as e:
-		output.print_error(f"HTML extraction exception {URL}: {str(e)}")
-		return None
+	# 更完整的请求头
+	header = {
+		"User-Agent": Uam.getUa(),
+		"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+		"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+		"Accept-Encoding": "gzip, deflate, br",
+		"Connection": "keep-alive",
+		"Upgrade-Insecure-Requests": "1",
+		"Sec-Fetch-Dest": "document",
+		"Sec-Fetch-Mode": "navigate",
+		"Sec-Fetch-Site": "none",
+		"Cache-Control": "max-age=0"
+	}
+	
+	# 设置重试次数
+	max_retries = 3
+	retry_delay = 1
+	
+	for attempt in range(max_retries):
+		try:
+			# 配置session以处理SSL和连接问题
+			session = requests.Session()
+			session.verify = False  # 禁用SSL验证
+			
+			# 设置适配器以处理重试
+			adapter = requests.adapters.HTTPAdapter(max_retries=2)
+			session.mount('http://', adapter)
+			session.mount('https://', adapter)
+			
+			# 添加代理支持
+			proxies = do_proxys()
+			if proxies and isinstance(proxies, dict):
+				session.proxies.update(proxies)
+			
+			# 发送请求
+			raw = session.get(
+				URL, 
+				headers=header, 
+				timeout=(10, 30),  # 连接超时10秒，读取超时30秒
+				cookies=arg.cookie if arg.cookie else None,
+				allow_redirects=True,
+				stream=False
+			)
+			
+			raw.raise_for_status()
+			
+			# 这里做了三个尝试，如果都失败，则返回None
+			try:
+				content = raw.content.decode("utf-8", "ignore")
+			except UnicodeDecodeError:
+				try:
+					content = raw.content.decode("gbk", "ignore")
+				except UnicodeDecodeError:
+					content = raw.content.decode("latin-1", "ignore")
+			
+			output.print_verbose(f"✅ Successfully retrieved HTML content: {URL}")
+			return content
+			
+		except requests.exceptions.SSLError as e:
+			if attempt < max_retries - 1:
+				output.print_verbose(f"🔄 SSL error on attempt {attempt + 1}, retrying: {URL}")
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				output.print_error(f"SSL error after {max_retries} attempts {URL}: {str(e)}")
+				return None
+				
+		except requests.exceptions.ConnectionError as e:
+			if attempt < max_retries - 1:
+				output.print_verbose(f"🔄 Connection error on attempt {attempt + 1}, retrying: {URL}")
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				output.print_error(f"Connection error after {max_retries} attempts {URL}: {str(e)}")
+				return None
+				
+		except requests.exceptions.Timeout as e:
+			if attempt < max_retries - 1:
+				output.print_verbose(f"🔄 Timeout on attempt {attempt + 1}, retrying: {URL}")
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				output.print_error(f"Timeout after {max_retries} attempts {URL}: {str(e)}")
+				return None
+				
+		except requests.exceptions.RequestException as e:
+			if attempt < max_retries - 1:
+				output.print_verbose(f"🔄 Request error on attempt {attempt + 1}, retrying: {URL}")
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				output.print_error(f"Request failed after {max_retries} attempts {URL}: {str(e)}")
+				return None
+				
+		except Exception as e:
+			if attempt < max_retries - 1:
+				output.print_verbose(f"🔄 Unexpected error on attempt {attempt + 1}, retrying: {URL}")
+				time.sleep(retry_delay)
+				retry_delay *= 2
+				continue
+			else:
+				output.print_error(f"Unexpected error after {max_retries} attempts {URL}: {str(e)}")
+				return None
+	
+	return None
 
 
 def find_by_url(url):

@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich.rule import Rule
+from rich.markdown import Markdown
 from .i18n import i18n
 
 
@@ -72,18 +73,23 @@ class OutputManager:
     def print_url(self, url, source=""):
         """打印发现的URL"""
         if self.silent_mode:
-            # 静默模式使用Rich的print而不是普通print
-            self.console.print(url, highlight=False)
+            # 静默模式：输出可点击链接（如果终端支持）
+            clickable_url = self._make_clickable_url(url)
+            self.console.print(clickable_url, highlight=False)
         else:
             # 添加到结果表格
             source_display = source.split('/')[-1] if source else "unknown"
             time_display = datetime.now().strftime("%H:%M:%S")
-            self.results_table.add_row(url, source_display, time_display)
             
+            # 创建可点击的URL用于表格
+            clickable_url = self._make_clickable_url(url)
+            self.results_table.add_row(clickable_url, source_display, time_display)
+            
+            # 终端输出也使用可点击链接
             if source:
-                self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue] [dim](from: {source_display})[/dim]")
+                self.console.print(f"[green bold]✓[/green bold] {clickable_url} [dim](from: {source_display})[/dim]")
             else:
-                self.console.print(f"[green bold]✓[/green bold] [blue]{url}[/blue]")
+                self.console.print(f"[green bold]✓[/green bold] {clickable_url}")
         
         # 保存结果
         self.results.append({
@@ -92,6 +98,23 @@ class OutputManager:
             "timestamp": datetime.now().isoformat()
         })
         self.stats["api_endpoints"] += 1
+    
+    def _make_clickable_url(self, url):
+        """创建可点击的URL（支持的终端中）"""
+        # 检查终端是否支持超链接
+        if hasattr(self.console, 'file') and hasattr(self.console.file, 'isatty'):
+            if self.console.file.isatty():
+                # 使用ANSI转义序列创建可点击链接
+                # 格式：\033]8;;URL\033\\显示文本\033]8;;\033\\
+                display_text = url
+                if len(url) > 80:
+                    display_text = url[:40] + "..." + url[-37:]
+                
+                clickable = f"\033]8;;{url}\033\\{display_text}\033]8;;\033\\"
+                return Text.from_ansi(clickable)
+        
+        # 如果不支持或检测失败，返回普通的彩色文本
+        return Text(url, style="cyan underline")
     
     def print_error(self, text):
         """打印错误信息"""
@@ -383,40 +406,193 @@ class FileOutputManager:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>API Finder - 扫描结果</title>
     <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
-        .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        h1 {{ color: #333; text-align: center; }}
-        .stats {{ display: flex; justify-content: space-around; margin: 20px 0; }}
-        .stat {{ text-align: center; padding: 10px; background: #e8f4f8; border-radius: 4px; }}
-        .stat-value {{ font-size: 24px; font-weight: bold; color: #2196F3; }}
-        .stat-label {{ font-size: 14px; color: #666; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
-        th {{ background-color: #f8f9fa; font-weight: bold; }}
-        .url-link {{ color: #2196F3; text-decoration: none; }}
-        .url-link:hover {{ text-decoration: underline; }}
-        .source {{ color: #666; font-size: 12px; }}
-        .timestamp {{ color: #888; font-size: 11px; }}
-        .filter-box {{ margin: 20px 0; }}
-        .filter-box input {{ padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 300px; }}
-    </style>
-    <script>
-        function filterResults() {{
-            const input = document.getElementById('filterInput');
-            const filter = input.value.toLowerCase();
-            const table = document.getElementById('resultsTable');
-            const rows = table.getElementsByTagName('tr');
-            
-            for (let i = 1; i < rows.length; i++) {{
-                const url = rows[i].getElementsByTagName('td')[0].textContent.toLowerCase();
-                if (url.indexOf(filter) > -1) {{
-                    rows[i].style.display = '';
-                }} else {{
-                    rows[i].style.display = 'none';
-                }}
-            }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 20px; 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
         }}
-    </script>
+        .container {{ 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }}
+        h1 {{ 
+            color: #333; 
+            text-align: center; 
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+        .stats {{ 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 20px; 
+            margin: 30px 0; 
+        }}
+        .stat {{ 
+            text-align: center; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            color: white;
+            transition: transform 0.3s ease;
+        }}
+        .stat:hover {{ transform: translateY(-5px); }}
+        .stat-value {{ 
+            font-size: 2em; 
+            font-weight: bold; 
+            margin-bottom: 5px;
+        }}
+        .stat-label {{ 
+            font-size: 0.9em; 
+            opacity: 0.9;
+        }}
+        .info-section {{
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }}
+        .info-section strong {{
+            color: #007bff;
+        }}
+        table {{ 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 30px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }}
+        th, td {{ 
+            padding: 15px; 
+            text-align: left; 
+            border-bottom: 1px solid #eee; 
+        }}
+        th {{ 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        tr:hover {{ 
+            background-color: #f8f9ff; 
+            transition: background-color 0.3s ease;
+        }}
+        .url-link {{ 
+            color: #007bff; 
+            text-decoration: none; 
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+        }}
+        .url-link:hover {{ 
+            color: #0056b3;
+            text-decoration: underline;
+            transform: translateX(5px);
+        }}
+        .url-link::before {{
+            content: '🔗';
+            margin-right: 5px;
+            opacity: 0.7;
+        }}
+        .source {{ 
+            color: #666; 
+            font-size: 0.9em;
+            background: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }}
+        .timestamp {{ 
+            color: #888; 
+            font-size: 0.85em;
+            font-family: monospace;
+        }}
+        .filter-section {{
+            margin: 30px 0;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }}
+        .filter-section input {{ 
+            padding: 12px 16px; 
+            border: 2px solid #ddd; 
+            border-radius: 25px; 
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+            flex: 1;
+            min-width: 300px;
+        }}
+        .filter-section input:focus {{
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }}
+        .btn {{
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: transform 0.3s ease;
+        }}
+        .btn:hover {{
+            transform: translateY(-2px);
+        }}
+        .url-type {{
+            font-size: 0.8em;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }}
+        .url-type.api {{ background: #d4edda; color: #155724; }}
+        .url-type.js {{ background: #fff3cd; color: #856404; }}
+        .url-type.css {{ background: #d1ecf1; color: #0c5460; }}
+        .url-type.image {{ background: #f8d7da; color: #721c24; }}
+        .url-type.other {{ background: #e2e3e5; color: #383d41; }}
+        .copy-btn {{
+            background: transparent;
+            border: 1px solid #007bff;
+            color: #007bff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+            transition: all 0.3s ease;
+        }}
+        .copy-btn:hover {{
+            background: #007bff;
+            color: white;
+        }}
+        .footer {{
+            margin-top: 50px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }}
+        @media (max-width: 768px) {{
+            .stats {{ grid-template-columns: 1fr 1fr; }}
+            .filter-section {{ flex-direction: column; }}
+            .filter-section input {{ min-width: 100%; }}
+        }}
+    </style>
 </head>
 <body>
     <div class="container">
@@ -441,20 +617,26 @@ class FileOutputManager:
             </div>
         </div>
         
-        <p><strong>目标URL:</strong> {target_url}</p>
-        <p><strong>扫描时间:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        <div class="info-section">
+            <p><strong>🎯 目标URL:</strong> <a href="{target_url}" target="_blank" class="url-link">{target_url}</a></p>
+            <p><strong>🕐 扫描时间:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p><strong>📊 扫描状态:</strong> {"✅ 完成" if len(results) > 0 else "⚠️ 未发现API端点"}</p>
+        </div>
         
-        <div class="filter-box">
-            <input type="text" id="filterInput" placeholder="过滤URL..." onkeyup="filterResults()">
+        <div class="filter-section">
+            <input type="text" id="filterInput" placeholder="🔍 过滤URL（支持正则表达式）..." onkeyup="filterResults()">
+            <button class="btn" onclick="exportResults()">📄 导出结果</button>
+            <button class="btn" onclick="clearFilter()">🗑️ 清除过滤</button>
         </div>
         
         <table id="resultsTable">
             <thead>
                 <tr>
-                    <th>URL</th>
-                    <th>来源</th>
-                    <th>类型</th>
-                    <th>时间</th>
+                    <th>🔗 URL</th>
+                    <th>📁 来源</th>
+                    <th>🏷️ 类型</th>
+                    <th>⏰ 时间</th>
+                    <th>🛠️ 操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -473,19 +655,106 @@ class FileOutputManager:
             except:
                 formatted_time = timestamp
             
+            # 生成类型标签的CSS类
+            type_class = 'api' if 'api' in url.lower() else 'js' if '.js' in url else 'css' if '.css' in url else 'image' if any(ext in url.lower() for ext in ['.jpg', '.png', '.gif', '.svg']) else 'other'
+            
             html_content += f"""
                 <tr>
-                    <td><a href="{url}" class="url-link" target="_blank">{url}</a></td>
+                    <td>
+                        <a href="{url}" class="url-link" target="_blank" rel="noopener noreferrer">{url}</a>
+                    </td>
                     <td><span class="source">{source.split('/')[-1] if source else 'Unknown'}</span></td>
-                    <td>{url_type}</td>
+                    <td><span class="url-type {type_class}">{url_type}</span></td>
                     <td><span class="timestamp">{formatted_time}</span></td>
+                    <td>
+                        <button class="copy-btn" onclick="copyToClipboard('{url}')">📋 复制</button>
+                    </td>
                 </tr>
 """
         
-        html_content += """
+        html_content += f"""
             </tbody>
         </table>
+        
+        <div class="footer">
+            <p>Generated by <strong>API Finder</strong> • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            <p>总共找到 <strong>{len(results)}</strong> 个URL</p>
+        </div>
     </div>
+
+    <script>
+        function filterResults() {{
+            const input = document.getElementById('filterInput');
+            const filter = input.value.toLowerCase();
+            const table = document.getElementById('resultsTable');
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 1; i < rows.length; i++) {{
+                const url = rows[i].getElementsByTagName('td')[0].textContent.toLowerCase();
+                const source = rows[i].getElementsByTagName('td')[1].textContent.toLowerCase();
+                const type = rows[i].getElementsByTagName('td')[2].textContent.toLowerCase();
+                
+                if (url.indexOf(filter) > -1 || source.indexOf(filter) > -1 || type.indexOf(filter) > -1) {{
+                    rows[i].style.display = '';
+                }} else {{
+                    rows[i].style.display = 'none';
+                }}
+            }}
+        }}
+        
+        function clearFilter() {{
+            document.getElementById('filterInput').value = '';
+            filterResults();
+        }}
+        
+        function copyToClipboard(url) {{
+            navigator.clipboard.writeText(url).then(function() {{
+                // 创建提示
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✅ 已复制';
+                btn.style.background = '#28a745';
+                btn.style.color = 'white';
+                
+                setTimeout(() => {{
+                    btn.textContent = originalText;
+                    btn.style.background = 'transparent';
+                    btn.style.color = '#007bff';
+                }}, 1000);
+            }});
+        }}
+        
+        function exportResults() {{
+            const table = document.getElementById('resultsTable');
+            const rows = table.getElementsByTagName('tr');
+            let csv = '序号,URL,来源,类型,时间\\n';
+            
+            for (let i = 1; i < rows.length; i++) {{
+                if (rows[i].style.display !== 'none') {{
+                    const cells = rows[i].getElementsByTagName('td');
+                    const url = cells[0].textContent;
+                    const source = cells[1].textContent;
+                    const type = cells[2].textContent;
+                    const time = cells[3].textContent;
+                    csv += `${{i}},"${{url}}","${{source}}","${{type}}","${{time}}"\\n`;
+                }}
+            }}
+            
+            const blob = new Blob([csv], {{ type: 'text/csv;charset=utf-8;' }});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'api_finder_results.csv';
+            link.click();
+        }}
+        
+        // 添加键盘快捷键
+        document.addEventListener('keydown', function(e) {{
+            if (e.ctrlKey && e.key === 'f') {{
+                e.preventDefault();
+                document.getElementById('filterInput').focus();
+            }}
+        }});
+    </script>
 </body>
 </html>
 """
