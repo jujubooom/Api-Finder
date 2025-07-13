@@ -34,6 +34,7 @@ from rich.json import JSON
 from rich.traceback import install
 from rich.columns import Columns
 from rich.rule import Rule
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 禁用SSL警告
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -48,11 +49,13 @@ parser.add_argument("-p", "--proxy", help=i18n.get('arg_proxy_help'))
 parser.add_argument("-s", "--silent", action="store_true", help=i18n.get('arg_silent_help'))
 parser.add_argument("-o", "--output", help=i18n.get('arg_output_help'))
 parser.add_argument("-t", "--timeout", type=int, default=10, help=i18n.get('arg_timeout_help'))
+parser.add_argument("-T", "--threads", type=int, default=10, help=i18n.get('arg_threads_help'))
 parser.add_argument("-d", "--delay", type=float, default=0.5, help=i18n.get('arg_delay_help'))
 parser.add_argument("-v", "--verbose", action="store_true", help=i18n.get('arg_verbose_help'))
 parser.add_argument("-r", "--random", action="store_true", help=i18n.get('arg_random_help'))
 parser.add_argument("-a", "--app", help=i18n.get('arg_app_help'), default='common')
 parser.add_argument("-U", "--update", action="store_true", help=i18n.get('arg_update_help'))
+
 arg = parser.parse_args()
 
 # 初始化Rich Console (Initialize Rich Console)
@@ -571,48 +574,91 @@ def find_by_url(url):
 			else:
 				output.print_verbose(f"✅ Found {len(temp_urls)} URLs")
 				allurls[script] = temp_urls
-	
+
+
+	# 添加全局锁保证输出和统计的线程安全
+	print_lock = threading.Lock()
+	stats_lock = threading.Lock()
+
 	# 处理发现的URL
 	total_urls = sum(len(urls) for urls in allurls.values())
 	if total_urls > 0:
 		output.print_info(f"🎯 [bold green]Found {total_urls} potential API endpoints. Testing them...[/bold green]")
-		
+
+		# 线程安全的进度条更新函数
+		def safe_update_progress(progress, task, description=None):
+			with print_lock:
+				if description:
+					progress.update(task, description=description)
+				progress.advance(task)
+
+		# 线程安全的URL打印
+		def safe_print_url(url, source):
+			with print_lock:
+				output.print_url(url, source)
+
+		# 线程安全的请求处理
+		def process_url(j, i, base_url):
+			temp1 = urlparse(j)
+			temp2 = urlparse(base_url)
+
+			if temp1.netloc != urlparse("1").netloc:
+				target_url = j
+			else:
+				target_url = temp2.scheme + "://" + temp2.netloc + j
+
+			safe_print_url(target_url, i)
+			try:
+				# 如果需要线程安全的请求，可以在do_request内部加锁
+				# 或者确保do_request是线程安全的
+				do_request(target_url)
+			except Exception as e:
+				with print_lock:
+					output.print_error(f"Error testing {target_url}: {str(e)}")
+
+			# 更新统计（如果需要）
+			with stats_lock:
+				# 这里可以添加自定义统计更新逻辑
+				pass
+
 		progress = output.create_progress()
 		if progress:
 			with progress:
 				test_task = progress.add_task("[blue]🌐 Testing endpoints...", total=total_urls)
-				
-				for i in allurls:
-					for j in allurls[i]:
-						# 显示当前正在测试的URL
-						url_display = j[:50] + "..." if len(j) > 50 else j
-						progress.update(test_task, description=f"[blue]🌐 Testing: {url_display}")
-						
-						output.print_url(j, i)
-						temp1 = urlparse(j)
-						temp2 = urlparse(url)
-						
-						if temp1.netloc != urlparse("1").netloc:
-							do_request(j)
-						else:
-							do_request(temp2.scheme+"://"+temp2.netloc+j)
-						
-						progress.advance(test_task)
+				with ThreadPoolExecutor(max_workers=arg.threads) as executor:  # 可根据需要调整线程数
+					futures = []
+					for i in allurls:
+						for j in allurls[i]:
+							url_display = j[:50] + "..." if len(j) > 50 else j
+
+							# 提交任务到线程池
+							future = executor.submit(
+								process_url, j, i, url
+							)
+							futures.append(future)
+
+							# 更新进度条描述（非必需）
+							progress.update(test_task, description=f"[blue]🌐 In queue: {url_display}")
+
+					# 动态更新进度条
+					for future in as_completed(futures):
+						safe_update_progress(progress, test_task)
 		else:
 			# 静默模式处理
-			for i in allurls:
-				for j in allurls[i]:
-					output.print_url(j, i)
-					temp1 = urlparse(j)
-					temp2 = urlparse(url)
-					
-					if temp1.netloc != urlparse("1").netloc:
-						do_request(j)
-					else:
-						do_request(temp2.scheme+"://"+temp2.netloc+j)
+			with ThreadPoolExecutor(max_workers=10) as executor:
+				futures = []
+				for i in allurls:
+					for j in allurls[i]:
+						futures.append(executor.submit(
+							process_url, j, i, url
+						))
+
+				# 等待所有任务完成
+				for future in as_completed(futures):
+					pass
 	else:
 		output.print_warning("⚠️ No API endpoints discovered in the scanned content")
-	
+
 	# 更新统计信息
 	output.stats["total_urls"] = total_urls
 

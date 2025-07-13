@@ -42,6 +42,7 @@ class I18nManager:
             'arg_random_help': 'Random User-Agent',
             'arg_app_help': 'Device User-Agent, default: common browser, weixin: WeChat, phone: mobile',
             'arg_update_help': 'Force update the rules file (Force update of the rules file)',
+            'arg_threads_help': 'Select the number of threads. The default is 10',
 
 
             # Output messages (输出消息)
