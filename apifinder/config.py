@@ -19,7 +19,7 @@ DEFAULT_CONFIG = {
     "default_app": "common",
     "random_ua": False,
     
-    # 代理相关 (Proxy related),采用scdn.io的代理，免费的，而且速度很快
+    # 代理相关 (Proxy related),采用scdn.io的代理，免费的，而且速度很快,这里的connt要和url中的count一致
     "proxy_api_url": "https://proxy.scdn.io/api/get_proxy.php?protocol=socks5&count=5",
     "proxy_count": 5,
     
