@@ -44,6 +44,7 @@ class I18nManager:
             'arg_update_help': 'Force update the rules file (Force update of the rules file)',
             'arg_threads_help': 'Select the number of threads. The default is 10',
             'arg_depth_help': 'Select the depth of the scan. The default is 1',
+            'arg_urlsfile_help': 'Select the file path of the urls',
 
 
             # Output messages (输出消息)

@@ -36,6 +36,7 @@ from rich.traceback import install
 from rich.columns import Columns
 from rich.rule import Rule
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 
 # 禁用SSL警告
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -57,6 +58,8 @@ parser.add_argument("-r", "--random", action="store_true", help=i18n.get('arg_ra
 parser.add_argument("-a", "--app", help=i18n.get('arg_app_help'), default='common')
 parser.add_argument("-U", "--update", action="store_true", help=i18n.get('arg_update_help'))
 parser.add_argument("-D", "--depth", type=int, default=2, help=i18n.get('arg_depth_help'))
+parser.add_argument("-f", "--file", help=i18n.get('arg_urlsfile_help'))
+
 
 
 arg = parser.parse_args()
@@ -157,12 +160,13 @@ class ResultStore:
 		self.results = {"GET": {}, "POST": {}}
 		self.lock = threading.Lock()
 
-	def update(self, method, success, response_text, error=None):
+	def update(self, method, success, response_text, error=None, is_json=False):
 		with self.lock:
 			self.results[method] = {
 				"success": success,
 				"response": response_text,
-				"error": error
+				"error": error,
+				"is_json": is_json
 			}
 
 
@@ -199,7 +203,7 @@ class DeepScanManager:
 
 
 # 请求执行函数 (Request execution function)
-def make_request(method, url, cookies, timeout, store):
+def make_request(method, url, cookies, timeout, store, redirect_count=0, max_redirects=5):
 	# 请求前的配置 (Request configuration)
 	proxies = do_proxys()
 	if proxies and isinstance(proxies, list):
@@ -250,20 +254,40 @@ def make_request(method, url, cookies, timeout, store):
 				)
 
 			if res.status_code in [301, 302, 303, 307, 308]:
+				if redirect_count >= max_redirects:
+					output.print_error(f"❌ 超过最大重定向次数({max_redirects})，终止请求: {url}")
+					store.update(method, False, None, f"Too many redirects (>{max_redirects})", is_json=False)
+					return
 				redirect_url = res.url
 				if redirect_url != url:
 					output.print_verbose(f"🔄 Redirect detected in {method} request: {url} -> {redirect_url}")
-					return make_request(method, redirect_url, cookies, timeout, store)
+					return make_request(method, redirect_url, cookies, timeout, store, redirect_count=redirect_count+1, max_redirects=max_redirects)
 
 			res.raise_for_status()
-			
+			# if res.status_code not in [200, 201, 202, 203, 204, 205, 206, 207, 208, 226]:
+			# 	output.print_error(f"❌ 请求失败: {url} (状态码: {res.status_code})")
+			# 	store.update(method, False, None, f"Request failed with status code: {res.status_code}", is_json=False)
+			# 	return 
+
 			if res.encoding is None or res.encoding == 'ISO-8859-1':
 				res.encoding = 'utf-8'
 			
 			original_response_text = res.text
 			response_text = res.text.replace(" ", "").replace("\n", "")
-			
-			store.update(method, True, original_response_text)
+
+			# 检查是否为JSON响应
+			is_json = False
+			content_type = res.headers.get('Content-Type', '')
+			if 'application/json' in content_type:
+				is_json = True
+			else:
+				try:
+					json.loads(res.text)
+					is_json = True
+				except Exception:
+					is_json = False
+
+			store.update(method, True, original_response_text, is_json=is_json)
 			return
 			
 		except requests.exceptions.SSLError as e:
@@ -318,12 +342,12 @@ def do_request(url):
 	# 创建并启动线程
 	get_thread = threading.Thread(
 		target=make_request,
-		args=("GET", url, {"Cookie": arg.cookie}, arg.timeout, result_store)
+		args=("GET", url, {"Cookie": arg.cookie}, arg.timeout, result_store, 0)
 	)
 
 	post_thread = threading.Thread(
 		target=make_request,
-		args=("POST", url, {"Cookie": arg.cookie}, arg.timeout, result_store)
+		args=("POST", url, {"Cookie": arg.cookie}, arg.timeout, result_store, 0)
 	)
 
 	# 启动线程
@@ -336,12 +360,19 @@ def do_request(url):
 	
 	response_text_to_return = None
 
+	# 统计JSON响应数量
+	if not hasattr(output.stats, 'json_responses'):
+		output.stats["json_responses"] = 0
+
 	# 统一输出结果 (Unified output results)
 	for method in ["GET", "POST"]:
 		result = result_store.results[method]
-		if result["success"]:
+		if result.get("success"):
 			response_text = result['response']
-			
+			is_json = result.get('is_json', False)
+			if is_json:
+				output.stats["json_responses"] = output.stats.get("json_responses", 0) + 1
+
 			if method == "GET":
 				response_text_to_return = response_text
 				# 尝试解析和打印标题
@@ -356,13 +387,20 @@ def do_request(url):
 					output.print_verbose(f"Could not parse title from {url}: {e}")
 
 			if method == "GET" and output.silent_mode:
-				output.console.print(url, highlight=False)
+				output.console.print(("[JSON] " if is_json else "") + url, highlight=False)
 			elif not output.silent_mode:
-				output.print_success(f"{method} request successful for {url}")
+				msg = f"{method} request successful for {url}"
+				if is_json:
+					msg = "[JSON] " + msg
+				output.print_success(msg)
 				if output.verbose_mode:
 					res_len = len(response_text)
 					output.print_verbose(f"📏 Response length: {res_len} characters")
-					output.print_verbose(f"👀 Response preview: {response_text[:200]}...")
+					preview = response_text[:200]
+					if is_json:
+						output.print_verbose(f"👀 [JSON] Response preview: {preview}...")
+					else:
+						output.print_verbose(f"👀 Response preview: {preview}...")
 
 			output.stats["successful_requests"] += 1
 		else:
@@ -667,9 +705,11 @@ def find_by_url(url, depth=0, deep_scan_manager=None):
 				progress.advance(task)
 
 		# 线程安全的URL打印
-		def safe_print_url(url, source):
+		def safe_print_url(url, source, IsSuccess):
 			with print_lock:
-				output.print_url(url, source)
+				if IsSuccess:
+					output.print_url(url, source, IsSuccess)
+				# 失败则不输出到表格
 
 		# 线程安全的请求处理
 		def process_url(j, i, base_url):
@@ -681,13 +721,15 @@ def find_by_url(url, depth=0, deep_scan_manager=None):
 			else:
 				target_url = temp2.scheme + "://" + temp2.netloc + j
 
-			safe_print_url(target_url, i)
 			try:
 				# 注意线程安全
-				do_request(target_url)
+				resp = do_request(target_url)
+				IsSuccess = resp is not None
 			except Exception as e:
+				IsSuccess = False
 				with print_lock:
 					output.print_error(f"Error testing {target_url}: {str(e)}")
+			safe_print_url(target_url, i, IsSuccess)
 
 		progress = output.create_progress()
 		if progress:
@@ -802,6 +844,8 @@ def main():
 	
 	finally:
 		output.print_stats()
+		if output.stats.get("json_responses", 0) != 0:
+			output.console.print(f"[bold green]共发现 {output.stats['json_responses']} 个JSON响应[/bold green]")
 		file_output.save_results(arg.url, arg)
 
 if __name__ == '__main__':

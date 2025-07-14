@@ -70,7 +70,7 @@ class OutputManager:
         if self.verbose_mode and not self.silent_mode:
             self.console.print(f"[dim][DEBUG][/dim] {text}")
     
-    def print_url(self, url, source=""):
+    def print_url(self, url, source="", IsSuccess=True):
         """打印发现的URL"""
         if self.silent_mode:
             # 静默模式：输出可点击链接（如果终端支持）
@@ -91,13 +91,16 @@ class OutputManager:
             else:
                 self.console.print(f"[green bold]✓[/green bold] {clickable_url}")
         
+        if IsSuccess:
         # 保存结果
-        self.results.append({
-            "url": url,
-            "source": source,
-            "timestamp": datetime.now().isoformat()
-        })
-        self.stats["api_endpoints"] += 1
+            self.results.append({
+                "url": url,
+                "source": source,
+                "timestamp": datetime.now().isoformat()
+            })
+            self.stats["api_endpoints"] += 1
+        else:
+            pass
     
     def _make_clickable_url(self, url):
         """创建可点击的URL（支持的终端中）"""
