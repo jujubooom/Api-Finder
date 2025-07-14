@@ -70,7 +70,7 @@ class OutputManager:
         if self.verbose_mode and not self.silent_mode:
             self.console.print(f"[dim][DEBUG][/dim] {text}")
     
-    def print_url(self, url, source=""):
+    def print_url(self, url, source="", IsSuccess=True):
         """打印发现的URL"""
         if self.silent_mode:
             # 静默模式：输出可点击链接（如果终端支持）
@@ -91,13 +91,16 @@ class OutputManager:
             else:
                 self.console.print(f"[green bold]✓[/green bold] {clickable_url}")
         
+        if IsSuccess:
         # 保存结果
-        self.results.append({
-            "url": url,
-            "source": source,
-            "timestamp": datetime.now().isoformat()
-        })
-        self.stats["api_endpoints"] += 1
+            self.results.append({
+                "url": url,
+                "source": source,
+                "timestamp": datetime.now().isoformat()
+            })
+            self.stats["api_endpoints"] += 1
+        else:
+            pass
     
     def _make_clickable_url(self, url):
         """创建可点击的URL（支持的终端中）"""
@@ -207,6 +210,32 @@ class OutputManager:
             console=self.console,
             expand=True
         )
+
+    def print_scan_start(self, url=None, batch=False):
+        """统一输出扫描开始信息"""
+        if batch:
+            self.print_info(f"🎯 [bold blue]Starting batch scan...[/bold blue]")
+        elif url:
+            self.print_info(f"🎯 [bold blue]Starting scan target:[/bold blue] [green]{url}[/green]")
+        else:
+            self.print_info(f"🎯 [bold blue]Starting scan...[/bold blue]")
+
+    def print_scan_end(self, found_count=None, batch=False):
+        """统一输出扫描结束信息"""
+        if batch:
+            self.print_info(f"🎉 [bold green]Batch scan completed![/bold green]")
+        elif found_count is not None:
+            if found_count > 0:
+                self.print_info(f"🎉 [bold green]Scan completed! Found {found_count} API endpoints.[/bold green]")
+            else:
+                self.print_info(f"✅ [bold yellow]Scan completed. No API endpoints found.[/bold yellow]")
+        else:
+            self.print_info(f"🎉 [bold green]Scan completed![/bold green]")
+
+    def print_json_stats(self):
+        """统一输出JSON响应统计"""
+        if self.stats.get("json_responses", 0) > 0:
+            self.console.print(f"[bold green]共发现 {self.stats['json_responses']} 个JSON响应[/bold green]")
 
 
 class FileOutputManager:
