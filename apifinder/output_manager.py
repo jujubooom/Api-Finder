@@ -211,6 +211,32 @@ class OutputManager:
             expand=True
         )
 
+    def print_scan_start(self, url=None, batch=False):
+        """统一输出扫描开始信息"""
+        if batch:
+            self.print_info(f"🎯 [bold blue]Starting batch scan...[/bold blue]")
+        elif url:
+            self.print_info(f"🎯 [bold blue]Starting scan target:[/bold blue] [green]{url}[/green]")
+        else:
+            self.print_info(f"🎯 [bold blue]Starting scan...[/bold blue]")
+
+    def print_scan_end(self, found_count=None, batch=False):
+        """统一输出扫描结束信息"""
+        if batch:
+            self.print_info(f"🎉 [bold green]Batch scan completed![/bold green]")
+        elif found_count is not None:
+            if found_count > 0:
+                self.print_info(f"🎉 [bold green]Scan completed! Found {found_count} API endpoints.[/bold green]")
+            else:
+                self.print_info(f"✅ [bold yellow]Scan completed. No API endpoints found.[/bold yellow]")
+        else:
+            self.print_info(f"🎉 [bold green]Scan completed![/bold green]")
+
+    def print_json_stats(self):
+        """统一输出JSON响应统计"""
+        if self.stats.get("json_responses", 0) > 0:
+            self.console.print(f"[bold green]共发现 {self.stats['json_responses']} 个JSON响应[/bold green]")
+
 
 class FileOutputManager:
     """

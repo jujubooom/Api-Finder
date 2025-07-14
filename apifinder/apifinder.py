@@ -45,7 +45,7 @@ urllib3.disable_warnings(InsecureRequestWarning)
 install()
 
 parser = argparse.ArgumentParser(description="Api-Finder v0.3")
-parser.add_argument("-u", "--url", help=i18n.get('arg_url_help'), required=True)
+parser.add_argument("-u", "--url", help=i18n.get('arg_url_help'))
 parser.add_argument("-c", "--cookie", help=i18n.get('arg_cookie_help'))
 parser.add_argument("-p", "--proxy", help=i18n.get('arg_proxy_help'))
 parser.add_argument("-s", "--silent", action="store_true", help=i18n.get('arg_silent_help'))
@@ -559,7 +559,7 @@ def find_by_url(url, depth=0, deep_scan_manager=None):
 	
 	try:
 		if depth == 0:
-			output.print_info(f"🎯 [bold blue]Starting scan target:[/bold blue] [green]{url}[/green]")
+			output.print_scan_start(url)
 		else:
 			output.print_info(f"🔍 [bold blue]Deep scan (depth {depth}):[/bold blue] [green]{url}[/green]")
 	except:
@@ -803,9 +803,53 @@ def find_by_url(url, depth=0, deep_scan_manager=None):
 
 
 
+def run_batch_file():
+	if not arg.output:
+		import os
+		base = os.path.splitext(os.path.basename(arg.file))[0]
+		time = datetime.now().strftime("%Y%m%d%H%M%S")
+		arg.output = f"{base}_{time}_result.html"
+		output.output_file = arg.output
+	with open(arg.file, 'r', encoding='utf-8') as f:
+		urls = [line.strip() for line in f if line.strip()]
+	output.print_scan_start(batch=True)
+	try:
+		for url in urls:
+			try:
+				output.print_scan_start(url)
+				find_by_url(url)
+			except Exception as e:
+				output.print_error(f"Error scanning {url}: {e}")
+	finally:
+		output.print_scan_end(batch=True)
+		output.print_stats()
+		output.print_json_stats()
+		file_output.save_results(arg.file, arg)
+		output.print_info(f"[bold green]批量扫描已完成，结果已保存到 {output.output_file}[/bold green]")
+		sys.exit(0)
+
+
+def run_single_url():
+	try:
+		url = arg.url
+		output.print_proxy_mode(do_proxys())
+		output.print_info(f"🚀 [bold green]Starting API endpoint scan...[/bold green]")
+		output.print_scan_start(url)
+		find_by_url(url)
+		output.print_scan_end(output.stats["api_endpoints"])
+	finally:
+		output.print_stats()
+		output.print_json_stats()
+		file_output.save_results(arg.url, arg)
+
+
 # 设置一个主函数，方便后续添加新的功能
 def main():
 	"""主函数"""
+
+	if not arg.url and not arg.file:
+		output.print_error("❌ Please specify a valid URL, e.g.: -u https://www.baidu.com")
+		sys.exit(1)
 	
 	# 首先处理更新检查
 	if arg.update:
@@ -819,34 +863,10 @@ def main():
 	if not arg.silent:
 		show_logo()
 	
-	try:
-		url = arg.url
-		
-		# 显示代理模式
-		output.print_proxy_mode(do_proxys())
-
-		# 开始扫描
-		output.print_info(f"🚀 [bold green]Starting API endpoint scan...[/bold green]")
-		find_by_url(url)
-		
-		if not output.silent_mode:
-			if output.stats["api_endpoints"] > 0:
-				output.print_info(f"🎉 [bold green]Scan completed! Found {output.stats['api_endpoints']} API endpoints.[/bold green]")
-			else:
-				output.print_info(f"✅ [bold yellow]Scan completed. No API endpoints found.[/bold yellow]")
-	
-	except KeyboardInterrupt:
-		output.print_warning("\n⚠️ Scan interrupted by user")
-		sys.exit(1)
-	except Exception as e:
-		output.print_error(f"Error: {str(e)}")
-		raise  # 让Rich的异常处理器处理
-	
-	finally:
-		output.print_stats()
-		if output.stats.get("json_responses", 0) != 0:
-			output.console.print(f"[bold green]共发现 {output.stats['json_responses']} 个JSON响应[/bold green]")
-		file_output.save_results(arg.url, arg)
+	if arg.file:
+		run_batch_file()
+	else:
+		run_single_url()
 
 if __name__ == '__main__':
 	main()
