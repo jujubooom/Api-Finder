@@ -11,11 +11,11 @@ DEFAULT_CONFIG = {
     "timeout": 10,
     "delay": 0.5,
     
-    # 输出相关 (Output related)
+    # 输出相关
     "silent_mode": False,
     "verbose_mode": False,
     
-    # UA相关 (User-Agent related)
+    # UA相关
     "default_app": "common",
     "random_ua": False,
     
@@ -29,11 +29,9 @@ DEFAULT_CONFIG = {
     # 更新相关 (Update related)
     "remote_rules_url": "https://raw.githubusercontent.com/jujubooom/Api-Finder/refs/heads/main/config/rules.yaml",
     "update_interval_days": 3,
-    
-    # 输出格式 (Output formats)
+
     "supported_formats": [".txt", ".json", ".csv", ".html", ".xml", ".xlsx", ".md"],
-        
-    # 版本信息 (Version information)
+
     "version": "0.5.1",
     "description": "Api-Finder - Find API endpoints from frontend files",
     "github_url": "https://github.com/jujubooom/Api-Finder"

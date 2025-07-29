@@ -4,7 +4,8 @@ Api-Finder - API端点扫描工具
 这是一个用于从前端文件中发现API端点的工具包。
 """
 
-from .output_manager import OutputManager, FileOutputManager
+from .FileOutputManager import FileOutputManager
+from .Output_Manager import OutputManager
 from .utils import URLProcessor, URLExtractor, UpdateManager
 from .ua_manager import UaManager
 from .config import DEFAULT_CONFIG

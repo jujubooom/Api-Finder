@@ -20,7 +20,8 @@ import urllib3
 from .ua_manager import UaManager
 from .utils import URLProcessor, URLExtractor, UpdateManager
 from .i18n import i18n
-from .output_manager import OutputManager, FileOutputManager
+from .Output_Manager import OutputManager
+from .FileOutputManager import FileOutputManager
 import threading
 import pyfiglet
 from rich.console import Console
@@ -563,7 +564,7 @@ def find_by_url(url, depth=0, deep_scan_manager=None):
 		else:
 			output.print_info(f"🔍 [bold blue]Deep scan (depth {depth}):[/bold blue] [green]{url}[/green]")
 	except:
-		output.print_info("❌ Please specify a valid URL, e.g.: https://www.baidu.com")
+		output.print_info("❌ Please specify a valid URL, e.g.: https://www.google.com")
 		return None
 	
 	# 使用状态显示

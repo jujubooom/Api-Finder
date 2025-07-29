@@ -1,5 +1,5 @@
 version_timestamp: 20240101000000
-last_check_timestamp: '20250712165818'
+last_check_timestamp: '20250729232800'
 url_extractor_pattern: "(?:\"|')                               # Start newline delimiter\n\
   (\n  ((?:[a-zA-Z]{1,10}://|//)           # Match a scheme [a-Z]*1-10 or //\n  [^\"\
   '/]{1,}\\.                        # Match a domainname (any character + dot)\n \
@@ -14,6 +14,10 @@ url_extractor_pattern: "(?:\"|')                               # Start newline d
   \       action|html|js|txt|xml)             # . + extension\n  (?:\\?[^\"|']{0,}|))\
   \                  # ? mark with parameters\n)\n(?:\"|')                       \
   \        # End newline delimiter\n"
+
+
+
+# 排除在外的站点
 ignored_domains:
 - developer.apple.com
 - github.com
@@ -27,3 +31,5 @@ ignored_domains:
 - www.mozilla.org
 - www.w3.org
 - www.whatwg.org
+- www.baidu.com
+
