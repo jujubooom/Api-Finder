@@ -103,11 +103,51 @@ python main.py -u https://example.com -o results.md      # Markdown格式
 
 ## 许可证 (License)
 
-本项目采用开源许可证，详见项目仓库。
+本项目采用 [MIT许可证](LICENSE)。
 
 ## 贡献 (Contributing)
 
-欢迎提交Issue和Pull Request来改进这个项目。
+欢迎提交Issue和Pull Request来改进这个项目。请查看 [贡献指南](CONTRIBUTING.md) 了解详细信息。
+
+## 行为准则 (Code of Conduct)
+
+请查看我们的 [行为准则](CODE_OF_CONDUCT.md)。
+
+## 安全 (Security)
+
+如果您发现了安全漏洞，请查看我们的 [安全政策](SECURITY.md)。
+
+## 开发 (Development)
+
+### 快速开始
+
+```bash
+# 克隆项目
+git clone https://github.com/your-username/api-finder.git
+cd api-finder
+
+# 设置开发环境
+make dev-setup
+
+# 运行测试
+make test
+
+# 检查代码质量
+make quality
+```
+
+### 使用Docker
+
+```bash
+# 构建镜像
+docker build -t api-finder .
+
+# 运行容器
+docker run api-finder -u https://example.com -v
+
+# 使用Docker Compose
+docker-compose up
+```
 
 ---
 
