@@ -17,6 +17,107 @@ url_extractor_pattern: "(?:\"|')                               # Start newline d
 
 
 
+version_timestamp: 20240101000000
+last_check_timestamp: '20250729232800'
+url_extractor_pattern: "(?:\"|')                               # Start newline delimiter\n\
+  (\n  ((?:[a-zA-Z]{1,10}://|//)           # Match a scheme [a-Z]*1-10 or //\n  [^\"\
+  '/]{1,}\\.                        # Match a domainname (any character + dot)\n \
+  \ [a-zA-Z]{2,}[^\"']{0,})              # The domainextension and/or path\n  |\n\
+  \  ((?:/|\\.\\./|\\./)                    # Start with /,../,./\n  [^\"'><,;| *()(%%$^/\\\
+  \\\\[\\]]          # Next character can't be...\n  [^\"'><,;|()]{1,})          \
+  \         # Rest of the characters can't be\n  |\n  ([a-zA-Z0-9_\\-/]{1,}/     \
+  \          # Relative endpoint with /\n  [a-zA-Z0-9_\\-/]{1,}                 #\
+  \ Resource name\n  \\.(?:[a-zA-Z]{1,4}|action)          # Rest + extension (length\
+  \ 1-4 or action)\n  (?:[\\?|/][^\"|']{0,}|))              # ? mark with parameters\n\
+  \  |\n  ([a-zA-Z0-9_\\-]{1,}                 # filename\n  \\.(?:php|asp|aspx|jsp|json|\n\
+  \       action|html|js|txt|xml)             # . + extension\n  (?:\\?[^\"|']{0,}|))\
+  \                  # ? mark with parameters\n)\n(?:\"|')                       \
+  \        # End newline delimiter\n"
+
+
+# API端点模式
+api_patterns:
+  - "api/*"
+  - "v1/*"
+  - "v2/*"
+  - "v3/*"
+  - "rest/*"
+  - "graphql"
+  - "swagger/*"
+  - "openapi/*"
+  - "docs/*"
+  - "admin/*"
+  - "auth/*"
+  - "user/*"
+  - "users/*"
+  - "login"
+  - "logout"
+  - "register"
+  - "signup"
+  - "signin"
+  - "oauth/*"
+  - "token"
+  - "refresh"
+  - "profile"
+  - "settings"
+  - "config"
+  - "status"
+  - "health"
+  - "ping"
+  - "metrics"
+  - "stats"
+  - "data/*"
+  - "files/*"
+  - "upload/*"
+  - "download/*"
+  - "search"
+  - "query"
+  - "filter"
+  - "sort"
+  - "page"
+  - "limit"
+  - "offset"
+
+# 文件扩展名
+file_extensions:
+  - ".json"
+  - ".xml"
+  - ".yaml"
+  - ".yml"
+  - ".txt"
+  - ".csv"
+  - ".pdf"
+  - ".doc"
+  - ".docx"
+  - ".xls"
+  - ".xlsx"
+  - ".ppt"
+  - ".pptx"
+  - ".zip"
+  - ".rar"
+  - ".7z"
+  - ".tar"
+  - ".gz"
+  - ".bz2"
+  - ".mp3"
+  - ".mp4"
+  - ".avi"
+  - ".mov"
+  - ".wmv"
+  - ".flv"
+  - ".jpg"
+  - ".jpeg"
+  - ".png"
+  - ".gif"
+  - ".bmp"
+  - ".svg"
+  - ".ico"
+  - ".webp"
+  - ".tiff"
+  - ".psd"
+  - ".ai"
+  - ".eps"
+
 # 排除在外的站点
 ignored_domains:
 - developer.apple.com
@@ -32,4 +133,159 @@ ignored_domains:
 - www.w3.org
 - www.whatwg.org
 - www.baidu.com
+- www.google.com
+- www.google.cn
+- www.bing.com
+- www.yahoo.com
+- www.sogou.com
+- www.360.cn
+- www.qq.com
+- www.weibo.com
+- www.zhihu.com
+- www.douyin.com
+- www.tiktok.com
+- www.youtube.com
+- www.facebook.com
+- www.twitter.com
+- www.instagram.com
+- www.linkedin.com
+- www.reddit.com
+- www.stackoverflow.com
+- www.github.com
+- www.gitlab.com
+- www.bitbucket.org
+- www.npmjs.com
+- www.pypi.org
+- www.maven.org
+- www.nuget.org
+- www.docker.com
+- www.kubernetes.io
+- www.aws.amazon.com
+- www.azure.microsoft.com
+- www.cloud.google.com
+- www.alibaba.com
+- www.tencent.com
+- www.netease.com
+- www.sina.com.cn
+- www.sohu.com
+- www.163.com
+- www.126.com
+- www.qq.com
+- www.taobao.com
+- www.tmall.com
+- www.jd.com
+- www.amazon.com
+- www.ebay.com
+- www.walmart.com
+- www.target.com
+- www.bestbuy.com
+- www.homedepot.com
+- www.lowes.com
+- www.costco.com
+- www.samsclub.com
+- www.kroger.com
+- www.safeway.com
+- www.albertsons.com
+- www.publix.com
+- www.wegmans.com
+- www.shoprite.com
+- www.stopandshop.com
+- www.giant-eagle.com
+- www.foodlion.com
+- www.harristeeter.com
+- www.meijer.com
+- www.hy-vee.com
+- www.freshmarket.com
+- www.sprouts.com
+- www.traderjoes.com
+- www.wholefoodsmarket.com
+- www.aldi.com
+- www.lidl.com
+- www.dollarstore.com
+- www.familydollar.com
+- www.dollartree.com
+- www.99centsonly.com
+- www.biglots.com
+- www.ollies.com
+- www.gabes.com
+- www.burlington.com
+- www.marshalls.com
+- www.tjmaxx.com
+- www.ross.com
+- www.sierra.com
+- www.nordstromrack.com
+- www.saksfifthavenue.com
+- www.neimanmarcus.com
+- www.bloomingdales.com
+- www.macys.com
+- www.dillards.com
+- www.belk.com
+- www.jcpenney.com
+- www.sears.com
+- www.kohls.com
+- www.target.com
+- www.walmart.com
+- www.bestbuy.com
+- www.homedepot.com
+- www.lowes.com
+- www.acehardware.com
+- www.tractorsupply.com
+- www.ruralking.com
+- www.fleetfarm.com
+- www.menards.com
+- www.84lumber.com
+- www.beacon.com
+- www.abc-supply.com
+- www.sherwin-williams.com
+- www.benjaminmoore.com
+- www.ppg.com
+- www.valspar.com
+- www.behr.com
+- www.kilz.com
+- www.rustoleum.com
+- www.minwax.com
+- www.varathane.com
+- www.polycrylic.com
+- www.woodcraft.com
+- www.rockler.com
+- www.leevalley.com
+- www.veritas.com
+- www.lie-nielsen.com
+- www.leevalley.com
+- www.woodcraft.com
+- www.rockler.com
+- www.highlandwoodworking.com
+- www.woodworkerssource.com
+- www.woodpeckers.com
+- www.incra.com
+- www.jessem.com
+- www.kregtool.com
+- www.festool.com
+- www.makita.com
+- www.dewalt.com
+- www.milwaukeetool.com
+- www.ryobi.com
+- www.ridgid.com
+- www.portercable.com
+- www.craftsman.com
+- www.blackanddecker.com
+- www.bosch.com
+- www.hitachi.com
+- www.metabo.com
+- www.fein.com
+- www.mirka.com
+- www.festool.com
+- www.makita.com
+- www.dewalt.com
+- www.milwaukeetool.com
+- www.ryobi.com
+- www.ridgid.com
+- www.portercable.com
+- www.craftsman.com
+- www.blackanddecker.com
+- www.bosch.com
+- www.hitachi.com
+- www.metabo.com
+- www.fein.com
+- www.mirka.com
 

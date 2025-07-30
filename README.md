@@ -1,14 +1,14 @@
-# Api-Finder
+# Api-Finder-强大的Api寻找工具
 
 [![Python](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/your-username/api-finder/blob/master/LICENSE)
-[![Version](https://img.shields.io/badge/version-0.6.5-brightgreen.svg)](https://github.com/your-username/api-finder/releases)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/your-username/api-finder)
-[![Code Quality](https://img.shields.io/badge/code%20quality-A-brightgreen.svg)](https://github.com/your-username/api-finder)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/jujubooom/api-finder/blob/master/LICENSE)
+[![Version](https://img.shields.io/badge/version-0.6.5-brightgreen.svg)](https://github.com/jujubooom/api-finder/releases)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/jujubooom/api-finder)
+[![Code Quality](https://img.shields.io/badge/code%20quality-A-brightgreen.svg)](https://github.com/jujubooom/api-finder)
 
-🔍 **Api-Finder是一款功能强大的API端点发现工具** 📝[English Document](https://github.com/your-username/api-finder/blob/master/docs/README.md)
+🔍 **Api-Finder是一款功能强大的API端点发现工具** 📝[English Document](https://github.com/jujubooom/api-finder/blob/master/docs/README.md)
 
-![Example](./docs/usage_example.svg)
+![Example](./docs/pic/yanshi.png)
 
 ## 🚀上手指南
 
@@ -253,7 +253,7 @@ Api-Finder/
 └── requirements.txt        # 项目依赖
 ```
 
-更多信息请参阅[目录结构说明](https://github.com/your-username/api-finder/tree/master/docs/directory_structure.md)。
+更多信息请参阅[目录结构说明](https://github.com/jujubooom/api-finder/tree/master/docs/directory_structure.md)。
 
 ## 👏用到框架
 
@@ -267,7 +267,7 @@ Api-Finder/
 
 ## 🔖版本控制
 
-该项目使用[SemVer](https://semver.org/)语义化版本格式进行版本管理，你可以参阅[变更记录说明](https://github.com/your-username/api-finder/tree/master/docs/changes.md)了解历史变更情况。
+该项目使用[SemVer](https://semver.org/)语义化版本格式进行版本管理，你可以参阅[变更记录说明](https://github.com/jujubooom/api-finder/tree/master/docs/changes.md)了解历史变更情况。
 
 ## ⌛后续计划
 
@@ -276,8 +276,9 @@ Api-Finder/
 - [ ] 实现Web界面
 - [ ] 支持更多输出格式
 - [ ] 优化性能和稳定性
+- ...
 
-更多信息请参阅[后续开发计划](https://github.com/your-username/api-finder/tree/master/docs/todo.md)。
+更多信息请参阅[后续开发计划](https://github.com/jujubooom/api-finder/tree/master/docs/todo.md)。
 
 ## 🙏贡献
 
@@ -285,20 +286,21 @@ Api-Finder/
 
 ## 👨‍💻贡献者
 
-* **[Your Name](https://github.com/your-username)**
-  * 核心开发
+* **[Ewoji's Blog](https://ewoji.cn/)**
+  * 项目开发
 
-你可以在[贡献者文档](https://github.com/your-username/api-finder/tree/master/docs/contributors.md)中查看所有贡献者以及他们所做出的贡献，感谢他们让Api-Finder变得更强大好用。
+* **[Orxiain's Blog](https://orxiain.life/)**
+  * 项目开发
 
-## ☕赞赏
+* **[Bx's Blog](https://www.bx33661.com/)**
+  * 项目开发
 
-如果你觉得这个项目帮助到了你，你可以打赏一杯咖啡以资鼓励:)
+希望你们参与进来
 
-![](https://raw.githubusercontent.com/your-username/api-finder/master/images/Donate.png)
 
 ## 📄版权
 
-该项目签署了MIT授权许可，详情请参阅[LICENSE](https://github.com/your-username/api-finder/blob/master/LICENSE)。
+该项目签署了MIT授权许可，详情请参阅[LICENSE](https://github.com/jujubooom/api-finder/blob/master/LICENSE)。
 
 ## 😘鸣谢
 
@@ -315,4 +317,4 @@ Api-Finder/
 
 ## 💖Star趋势
 
-[![Stargazers over time](https://starchart.cc/jujubooom/Api-Finder.svg?variant=adaptive)](https://starchart.cc/jujubooom/Api-Finder)
+[![Star History Chart](https://api.star-history.com/svg?repos=jujubooom/Api-Finder&type=Date)](https://www.star-history.com/#jujubooom/Api-Finder&Date)
