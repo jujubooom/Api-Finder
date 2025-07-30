@@ -8,7 +8,7 @@
 
 🔍 **Api-Finder是一款功能强大的API端点发现工具** 📝[English Document](https://github.com/jujubooom/api-finder/blob/master/docs/README.md)
 
-![Example](./docs/pic/yanshi.png)
+![Demo](./docs/pic/demo.gif)
 
 ## 🚀上手指南
 
@@ -170,6 +170,7 @@ Api-Finder使用YAML格式的配置文件来定义扫描规则，配置文件位
 </details>
 
 ## 🎉项目简介
+![Example](./docs/pic/yanshi.png)
 
 项目地址：[https://github.com/jujubooom/api-finder](https://github.com/jujubooom/api-finder)
 
